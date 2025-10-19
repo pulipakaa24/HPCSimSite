@@ -358,7 +358,52 @@ async def websocket_dashboard_endpoint(websocket: WebSocket):
     await dashboard_manager.connect(websocket)
     
     try:
-        # Keep connection alive
+        # Send historical data from current session immediately after connection
+        buffer_data = telemetry_buffer.get_all()
+        if buffer_data and current_race_context:
+            logger.info(f"[Dashboard] Sending {len(buffer_data)} historical lap records to new dashboard")
+            
+            # Reverse to get chronological order (oldest to newest)
+            buffer_data.reverse()
+            
+            # Send each historical lap as a lap_data message
+            for i, telemetry in enumerate(buffer_data):
+                try:
+                    # Find matching strategy from history if available
+                    lap_strategy = None
+                    for strat in strategy_history:
+                        if strat.get("lap") == telemetry.lap:
+                            lap_strategy = {
+                                "strategy_name": strat.get("strategy_name"),
+                                "risk_level": strat.get("risk_level"),
+                                "brief_description": strat.get("brief_description"),
+                                "reasoning": strat.get("reasoning")
+                            }
+                            break
+                    
+                    # Send historical lap data
+                    await websocket.send_json({
+                        "type": "lap_data",
+                        "vehicle_id": 1,  # Assume single vehicle for now
+                        "lap_data": telemetry.model_dump(),
+                        "race_context": {
+                            "position": current_race_context.driver_state.current_position,
+                            "gap_to_leader": current_race_context.driver_state.gap_to_leader,
+                            "gap_to_ahead": current_race_context.driver_state.gap_to_ahead
+                        },
+                        "control_output": last_control_command if i == len(buffer_data) - 1 else {"brake_bias": 5, "differential_slip": 5},
+                        "strategy": lap_strategy,
+                        "timestamp": datetime.now().isoformat(),
+                        "historical": True  # Mark as historical data
+                    })
+                except Exception as e:
+                    logger.error(f"[Dashboard] Error sending historical lap {telemetry.lap}: {e}")
+            
+            logger.info(f"[Dashboard] Historical data transmission complete")
+        else:
+            logger.info("[Dashboard] No historical data to send (buffer empty or no race context)")
+        
+        # Keep connection alive and handle incoming messages
         while True:
             # Receive any messages (mostly just keepalive pings)
             data = await websocket.receive_text()
@@ -457,6 +502,28 @@ async def websocket_pi_endpoint(websocket: WebSocket):
                                 "message": "Processing strategies, please wait..."
                             })
                             
+                            # Create a background task to send periodic keepalive pings during strategy generation
+                            # This prevents WebSocket timeout during long AI operations
+                            keepalive_active = asyncio.Event()
+                            
+                            async def send_keepalive():
+                                """Send periodic pings to keep WebSocket alive during long operations."""
+                                while not keepalive_active.is_set():
+                                    try:
+                                        await asyncio.sleep(10)  # Send keepalive every 10 seconds
+                                        if not keepalive_active.is_set():
+                                            await websocket.send_json({
+                                                "type": "keepalive",
+                                                "timestamp": datetime.now().isoformat()
+                                            })
+                                            logger.debug(f"[WebSocket] Sent keepalive ping for lap {lap_number}")
+                                    except Exception as e:
+                                        logger.error(f"[WebSocket] Keepalive error: {e}")
+                                        break
+                            
+                            # Start keepalive task
+                            keepalive_task = asyncio.create_task(send_keepalive())
+                            
                             # Generate strategies (this is the slow part)
                             try:
                                 response = await strategy_generator.generate(
@@ -464,6 +531,10 @@ async def websocket_pi_endpoint(websocket: WebSocket):
                                     race_context=current_race_context,
                                     strategy_history=strategy_history
                                 )
+                                
+                                # Stop keepalive task
+                                keepalive_active.set()
+                                await keepalive_task
                                 
                                 # Extract top strategy (first one)
                                 top_strategy = response.strategies[0] if response.strategies else None
@@ -533,6 +604,13 @@ async def websocket_pi_endpoint(websocket: WebSocket):
                                 logger.info(f"{'='*60}\n")
                             
                             except Exception as e:
+                                # Stop keepalive task on error
+                                keepalive_active.set()
+                                try:
+                                    await keepalive_task
+                                except:
+                                    pass
+                                
                                 logger.error(f"[WebSocket] Strategy generation failed: {e}")
                                 # Send error but keep neutral controls
                                 await websocket.send_json({
@@ -694,7 +772,10 @@ if __name__ == "__main__":
         "main:app",
         host=settings.ai_service_host,
         port=settings.ai_service_port,
-        reload=True
+        reload=True,
+        ws_ping_interval=20,      # Send ping every 20 seconds
+        ws_ping_timeout=60,        # Wait up to 60 seconds for pong response
+        timeout_keep_alive=75      # HTTP keepalive timeout
     )
 
 

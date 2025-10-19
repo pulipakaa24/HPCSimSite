@@ -9,7 +9,7 @@ Connects to AI Intelligence Layer via WebSocket and:
 4. Generates voice announcements for strategy updates
 
 Usage:
-    python simulate_pi_websocket.py --interval 5 --ws-url ws://192.168.137.134:9000/ws/pi --enable-voice
+    python simulate_pi_websocket.py --interval 5 --ws-url ws://localhost:9000/ws/pi --enable-voice
 """
 from __future__ import annotations
 
@@ -306,7 +306,7 @@ class VoiceAnnouncer:
 class PiSimulator:
     """WebSocket-based Pi simulator with control feedback and voice announcements."""
     
-    def __init__(self, csv_path: Path, ws_url: str, interval: float = 60.0, enrichment_url: str = "http://192.168.137.134:8000", voice_enabled: bool = False):
+    def __init__(self, csv_path: Path, ws_url: str, interval: float = 60.0, enrichment_url: str = "http://localhost:8000", voice_enabled: bool = False):
         self.csv_path = csv_path
         self.ws_url = ws_url
         self.enrichment_url = enrichment_url
@@ -529,51 +529,70 @@ class PiSimulator:
                             logger.info(f"[ACK] {message}")
                             
                             # Now wait for the actual control command update
+                            # Keep receiving messages until we get the update (ignoring keepalives)
                             try:
-                                update = await asyncio.wait_for(websocket.recv(), timeout=45.0)
-                                update_data = json.loads(update)
+                                timeout_remaining = 45.0
+                                start_time = asyncio.get_event_loop().time()
                                 
-                                if update_data.get("type") == "control_command_update":
-                                    brake_bias = update_data.get("brake_bias", 5)
-                                    diff_slip = update_data.get("differential_slip", 5)
-                                    strategy_name = update_data.get("strategy_name", "N/A")
-                                    risk_level = update_data.get("risk_level", "medium")
-                                    reasoning = update_data.get("reasoning", "")
+                                while timeout_remaining > 0:
+                                    update = await asyncio.wait_for(websocket.recv(), timeout=timeout_remaining)
+                                    update_data = json.loads(update)
                                     
-                                    # Check if controls changed from previous
-                                    controls_changed = (
-                                        self.current_controls["brake_bias"] != brake_bias or
-                                        self.current_controls["differential_slip"] != diff_slip
-                                    )
+                                    # Ignore keepalive messages
+                                    if update_data.get("type") == "keepalive":
+                                        logger.debug(f"[KEEPALIVE] Received ping from server during strategy generation")
+                                        elapsed = asyncio.get_event_loop().time() - start_time
+                                        timeout_remaining = 45.0 - elapsed
+                                        continue
                                     
-                                    # Check if risk level changed
-                                    risk_level_changed = (
-                                        self.current_risk_level is not None and
-                                        self.current_risk_level != risk_level
-                                    )
+                                    # Process control command update
+                                    if update_data.get("type") == "control_command_update":
+                                        brake_bias = update_data.get("brake_bias", 5)
+                                        diff_slip = update_data.get("differential_slip", 5)
+                                        strategy_name = update_data.get("strategy_name", "N/A")
+                                        risk_level = update_data.get("risk_level", "medium")
+                                        reasoning = update_data.get("reasoning", "")
+                                        
+                                        # Check if controls changed from previous
+                                        controls_changed = (
+                                            self.current_controls["brake_bias"] != brake_bias or
+                                            self.current_controls["differential_slip"] != diff_slip
+                                        )
+                                        
+                                        # Check if risk level changed
+                                        risk_level_changed = (
+                                            self.current_risk_level is not None and
+                                            self.current_risk_level != risk_level
+                                        )
+                                        
+                                        self.previous_controls = self.current_controls.copy()
+                                        self.current_controls["brake_bias"] = brake_bias
+                                        self.current_controls["differential_slip"] = diff_slip
+                                        self.current_risk_level = risk_level
+                                        
+                                        logger.info(f"[UPDATED] Strategy-Based Control:")
+                                        logger.info(f"  ├─ Brake Bias: {brake_bias}/10")
+                                        logger.info(f"  ├─ Differential Slip: {diff_slip}/10")
+                                        logger.info(f"  ├─ Strategy: {strategy_name}")
+                                        logger.info(f"  ├─ Risk Level: {risk_level}")
+                                        if reasoning:
+                                            logger.info(f"  └─ Reasoning: {reasoning[:100]}...")
+                                        
+                                        self.apply_controls(brake_bias, diff_slip)
+                                        
+                                        # Voice announcement if controls OR risk level changed
+                                        if controls_changed or risk_level_changed:
+                                            if risk_level_changed and not controls_changed:
+                                                logger.info(f"[VOICE] Risk level changed to {risk_level}")
+                                            await self.voice_announcer.announce_strategy(update_data)
+                                        else:
+                                            logger.info(f"[VOICE] Skipping announcement - controls and risk level unchanged")
+                                        break  # Exit loop after processing update
                                     
-                                    self.previous_controls = self.current_controls.copy()
-                                    self.current_controls["brake_bias"] = brake_bias
-                                    self.current_controls["differential_slip"] = diff_slip
-                                    self.current_risk_level = risk_level
+                                    # Update timeout
+                                    elapsed = asyncio.get_event_loop().time() - start_time
+                                    timeout_remaining = 45.0 - elapsed
                                     
-                                    logger.info(f"[UPDATED] Strategy-Based Control:")
-                                    logger.info(f"  ├─ Brake Bias: {brake_bias}/10")
-                                    logger.info(f"  ├─ Differential Slip: {diff_slip}/10")
-                                    logger.info(f"  ├─ Strategy: {strategy_name}")
-                                    logger.info(f"  ├─ Risk Level: {risk_level}")
-                                    if reasoning:
-                                        logger.info(f"  └─ Reasoning: {reasoning[:100]}...")
-                                    
-                                    self.apply_controls(brake_bias, diff_slip)
-                                    
-                                    # Voice announcement if controls OR risk level changed
-                                    if controls_changed or risk_level_changed:
-                                        if risk_level_changed and not controls_changed:
-                                            logger.info(f"[VOICE] Risk level changed to {risk_level}")
-                                        await self.voice_announcer.announce_strategy(update_data)
-                                    else:
-                                        logger.info(f"[VOICE] Skipping announcement - controls and risk level unchanged")
                             except asyncio.TimeoutError:
                                 logger.warning("[TIMEOUT] Strategy generation took too long")
                         
@@ -734,14 +753,14 @@ async def main():
     parser.add_argument(
         "--ws-url",
         type=str,
-        default="ws://192.168.137.134:9000/ws/pi",
-        help="WebSocket URL for AI layer (default: ws://192.168.137.134:9000/ws/pi)"
+        default="ws://localhost:9000/ws/pi",
+        help="WebSocket URL for AI layer (default: ws://localhost:9000/ws/pi)"
     )
     parser.add_argument(
         "--enrichment-url",
         type=str,
-        default="http://192.168.137.134:8000",
-        help="Enrichment service URL (default: http://192.168.137.134:8000)"
+        default="http://localhost:8000",
+        help="Enrichment service URL (default: http://localhost:8000)"
     )
     parser.add_argument(
         "--csv",
