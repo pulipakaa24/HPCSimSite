@@ -7,14 +7,13 @@ from typing import List, Literal, Optional
 
 
 class EnrichedTelemetryWebhook(BaseModel):
-    """Single lap of enriched telemetry data from HPC enrichment module."""
+    """Single lap of enriched telemetry data from HPC enrichment module (lap-level)."""
     lap: int = Field(..., description="Lap number")
-    aero_efficiency: float = Field(..., ge=0.0, le=1.0, description="Aerodynamic efficiency (0..1, higher is better)")
-    tire_degradation_index: float = Field(..., ge=0.0, le=1.0, description="Tire wear (0..1, higher is worse)")
-    ers_charge: float = Field(..., ge=0.0, le=1.0, description="Energy recovery system charge level")
-    fuel_optimization_score: float = Field(..., ge=0.0, le=1.0, description="Fuel efficiency score")
-    driver_consistency: float = Field(..., ge=0.0, le=1.0, description="Lap-to-lap consistency")
-    weather_impact: Literal["low", "medium", "high"] = Field(..., description="Weather effect severity")
+    tire_degradation_rate: float = Field(..., ge=0.0, le=1.0, description="Tire degradation rate (0..1, higher is worse)")
+    pace_trend: Literal["improving", "stable", "declining"] = Field(..., description="Pace trend over recent laps")
+    tire_cliff_risk: float = Field(..., ge=0.0, le=1.0, description="Probability of tire performance cliff (0..1)")
+    optimal_pit_window: List[int] = Field(..., description="Recommended pit stop lap window [start, end]")
+    performance_delta: float = Field(..., description="Lap time delta vs baseline (negative = slower)")
 
 
 class RaceInfo(BaseModel):

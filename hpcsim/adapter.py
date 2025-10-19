@@ -4,147 +4,105 @@ from typing import Dict, Any
 
 
 def normalize_telemetry(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Normalize Pi/FastF1-like telemetry payload to Enricher expected schema.
+    """Normalize lap-level telemetry payload from Pi stream to Enricher schema.
 
-    Accepted aliases:
-    - speed: Speed
-    - throttle: Throttle
-    - brake: Brake, Brakes
-    - tire_compound: Compound, TyreCompound, Tire
-    - fuel_level: Fuel, FuelRel, FuelLevel
-    - ers: ERS, ERSCharge
-    - track_temp: TrackTemp, track_temperature
-    - rain_probability: RainProb, PrecipProb
-    - lap: Lap, LapNumber, lap_number
+    Accepted aliases for lap-level data:
+    - lap_number: lap, Lap, LapNumber, lap_number
     - total_laps: TotalLaps, total_laps
-    - track_name: TrackName, track_name, Circuit
-    - driver_name: DriverName, driver_name, Driver
-    - current_position: Position, current_position
-    - tire_life_laps: TireAge, tire_age, tire_life_laps
-    - rainfall: Rainfall, rainfall, Rain
+    - lap_time: lap_time, LapTime, Time
+    - average_speed: average_speed, avg_speed, AvgSpeed
+    - max_speed: max_speed, MaxSpeed, max
+    - tire_compound: tire_compound, Compound, TyreCompound, Tire
+    - tire_life_laps: tire_life_laps, TireAge, tire_age
+    - track_temperature: track_temperature, TrackTemp, track_temp
+    - rainfall: rainfall, Rainfall, Rain
     
-    Values are clamped and defaulted if missing.
+    Returns normalized dict ready for enrichment layer.
     """
     aliases = {
-        "lap": ["lap", "Lap", "LapNumber", "lap_number"],
-        "speed": ["speed", "Speed"],
-        "throttle": ["throttle", "Throttle"],
-        "brake": ["brake", "Brake", "Brakes"],
-        "tire_compound": ["tire_compound", "Compound", "TyreCompound", "Tire"],
-        "fuel_level": ["fuel_level", "Fuel", "FuelRel", "FuelLevel"],
-        "ers": ["ers", "ERS", "ERSCharge"],
-        "track_temp": ["track_temp", "TrackTemp", "track_temperature"],
-        "rain_probability": ["rain_probability", "RainProb", "PrecipProb"],
+        "lap_number": ["lap_number", "lap", "Lap", "LapNumber"],
         "total_laps": ["total_laps", "TotalLaps"],
-        "track_name": ["track_name", "TrackName", "Circuit"],
-        "driver_name": ["driver_name", "DriverName", "Driver"],
-        "current_position": ["current_position", "Position"],
+        "lap_time": ["lap_time", "LapTime", "Time"],
+        "average_speed": ["average_speed", "avg_speed", "AvgSpeed"],
+        "max_speed": ["max_speed", "MaxSpeed", "max"],
+        "tire_compound": ["tire_compound", "Compound", "TyreCompound", "Tire"],
         "tire_life_laps": ["tire_life_laps", "TireAge", "tire_age"],
+        "track_temperature": ["track_temperature", "TrackTemp", "track_temp"],
         "rainfall": ["rainfall", "Rainfall", "Rain"],
     }
 
     out: Dict[str, Any] = {}
 
     def pick(key: str, default=None):
+        """Pick first matching alias from payload."""
         for k in aliases.get(key, [key]):
             if k in payload and payload[k] is not None:
                 return payload[k]
         return default
 
-    def clamp01(x, default=0.0):
-        try:
-            v = float(x)
-        except (TypeError, ValueError):
-            return default
-        return max(0.0, min(1.0, v))
-
-    # Map values with sensible defaults
-    lap = pick("lap", 0)
+    # Extract and validate lap-level fields
+    lap_number = pick("lap_number", 0)
     try:
-        lap = int(lap)
+        lap_number = int(lap_number)
     except (TypeError, ValueError):
-        lap = 0
+        lap_number = 0
 
-    speed = pick("speed", 0.0)
+    total_laps = pick("total_laps", 51)
     try:
-        speed = float(speed)
+        total_laps = int(total_laps)
     except (TypeError, ValueError):
-        speed = 0.0
+        total_laps = 51
 
-    throttle = clamp01(pick("throttle", 0.0), 0.0)
-    brake = clamp01(pick("brake", 0.0), 0.0)
+    lap_time = pick("lap_time", None)
+    if lap_time:
+        out["lap_time"] = str(lap_time)
+
+    average_speed = pick("average_speed", 0.0)
+    try:
+        average_speed = float(average_speed)
+    except (TypeError, ValueError):
+        average_speed = 0.0
+
+    max_speed = pick("max_speed", 0.0)
+    try:
+        max_speed = float(max_speed)
+    except (TypeError, ValueError):
+        max_speed = 0.0
 
     tire_compound = pick("tire_compound", "medium")
     if isinstance(tire_compound, str):
-        tire_compound = tire_compound.lower()
+        tire_compound = tire_compound.upper()  # Keep uppercase for consistency
     else:
-        tire_compound = "medium"
+        tire_compound = "MEDIUM"
 
-    fuel_level = clamp01(pick("fuel_level", 0.5), 0.5)
-
-    ers = pick("ers", None)
-    if ers is not None:
-        ers = clamp01(ers, None)
-
-    track_temp = pick("track_temp", None)
+    tire_life_laps = pick("tire_life_laps", 0)
     try:
-        track_temp = float(track_temp) if track_temp is not None else None
+        tire_life_laps = int(tire_life_laps)
     except (TypeError, ValueError):
-        track_temp = None
+        tire_life_laps = 0
 
-    rain_prob = pick("rain_probability", None)
+    track_temperature = pick("track_temperature", 25.0)
     try:
-        rain_prob = clamp01(rain_prob, None) if rain_prob is not None else None
-    except Exception:
-        rain_prob = None
+        track_temperature = float(track_temperature)
+    except (TypeError, ValueError):
+        track_temperature = 25.0
 
+    rainfall = pick("rainfall", False)
+    try:
+        rainfall = bool(rainfall)
+    except (TypeError, ValueError):
+        rainfall = False
+
+    # Build normalized output
     out.update({
-        "lap": lap,
-        "speed": speed,
-        "throttle": throttle,
-        "brake": brake,
+        "lap_number": lap_number,
+        "total_laps": total_laps,
+        "average_speed": average_speed,
+        "max_speed": max_speed,
         "tire_compound": tire_compound,
-        "fuel_level": fuel_level,
+        "tire_life_laps": tire_life_laps,
+        "track_temperature": track_temperature,
+        "rainfall": rainfall,
     })
-    if ers is not None:
-        out["ers"] = ers
-    if track_temp is not None:
-        out["track_temp"] = track_temp
-    if rain_prob is not None:
-        out["rain_probability"] = rain_prob
-    
-    # Add race context fields if present
-    total_laps = pick("total_laps", None)
-    if total_laps is not None:
-        try:
-            out["total_laps"] = int(total_laps)
-        except (TypeError, ValueError):
-            pass
-    
-    track_name = pick("track_name", None)
-    if track_name:
-        out["track_name"] = str(track_name)
-    
-    driver_name = pick("driver_name", None)
-    if driver_name:
-        out["driver_name"] = str(driver_name)
-    
-    current_position = pick("current_position", None)
-    if current_position is not None:
-        try:
-            out["current_position"] = int(current_position)
-        except (TypeError, ValueError):
-            pass
-    
-    tire_life_laps = pick("tire_life_laps", None)
-    if tire_life_laps is not None:
-        try:
-            out["tire_life_laps"] = int(tire_life_laps)
-        except (TypeError, ValueError):
-            pass
-    
-    rainfall = pick("rainfall", None)
-    if rainfall is not None:
-        out["rainfall"] = bool(rainfall)
 
     return out

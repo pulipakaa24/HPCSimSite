@@ -40,17 +40,14 @@ class StrategyGenerator:
         Raises:
             Exception: If generation fails
         """
-        logger.info("Starting strategy brainstorming...")
-        logger.info(f"Using {len(enriched_telemetry)} telemetry records")
+        logger.info(f"Generating strategies using {len(enriched_telemetry)} laps of telemetry")
         
         # Build prompt (use fast mode if enabled)
         if self.settings.fast_mode:
             from prompts.brainstorm_prompt import build_brainstorm_prompt_fast
             prompt = build_brainstorm_prompt_fast(enriched_telemetry, race_context)
-            logger.info("Using FAST MODE prompt")
         else:
             prompt = build_brainstorm_prompt(enriched_telemetry, race_context)
-        logger.debug(f"Prompt length: {len(prompt)} chars")
         
         # Generate with Gemini (high temperature for creativity)
         response_data = await self.gemini_client.generate_json(
@@ -64,7 +61,6 @@ class StrategyGenerator:
             raise Exception("Response missing 'strategies' field")
         
         strategies_data = response_data["strategies"]
-        logger.info(f"Received {len(strategies_data)} strategies from Gemini")
         
         # Validate and parse strategies
         strategies = []
@@ -73,15 +69,12 @@ class StrategyGenerator:
                 strategy = Strategy(**s_data)
                 strategies.append(strategy)
             except Exception as e:
-                logger.warning(f"Failed to parse strategy {s_data.get('strategy_id', '?')}: {e}")
+                logger.warning(f"Failed to parse strategy: {e}")
         
-        logger.info(f"Successfully parsed {len(strategies)} strategies")
+        logger.info(f"Generated {len(strategies)} valid strategies")
         
         # Validate strategies
         valid_strategies = StrategyValidator.validate_strategies(strategies, race_context)
-        
-        if len(valid_strategies) < 10:
-            logger.warning(f"Only {len(valid_strategies)} valid strategies (expected 20)")
         
         # Return response
         return BrainstormResponse(strategies=valid_strategies)

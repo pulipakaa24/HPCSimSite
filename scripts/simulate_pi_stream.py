@@ -1,13 +1,14 @@
 """
-Raspberry Pi Telemetry Stream Simulator
+Raspberry Pi Telemetry Stream Simulator - Lap-Level Data
 
-Reads the ALONSO_2023_MONZA_RACE CSV file row by row and simulates
+Reads the ALONSO_2023_MONZA_LAPS.csv file lap by lap and simulates
 live telemetry streaming from a Raspberry Pi sensor.
-Sends data to the HPC simulation layer via HTTP POST at intervals
-determined by the time differences between consecutive rows.
+Sends data to the HPC simulation layer via HTTP POST at fixed 
+1-minute intervals between laps.
 
 Usage:
-    python simulate_pi_stream.py --data ALONSO_2023_MONZA_RACE --speed 1.0
+    python simulate_pi_stream.py
+    python simulate_pi_stream.py --interval 30  # 30 seconds between laps
 """
 
 import argparse
@@ -19,39 +20,32 @@ import pandas as pd
 import requests
 
 
-def load_telemetry_csv(filepath: Path) -> pd.DataFrame:
-    """Load telemetry data from CSV file."""
-    df = pd.read_csv(filepath, index_col=0)
+def load_lap_csv(filepath: Path) -> pd.DataFrame:
+    """Load lap-level telemetry data from CSV file."""
+    df = pd.read_csv(filepath)
     
-    # Convert overall_time to timedelta if it's not already
-    if df['overall_time'].dtype == 'object':
-        df['overall_time'] = pd.to_timedelta(df['overall_time'])
+    # Convert lap_time to timedelta if it's not already
+    if 'lap_time' in df.columns and df['lap_time'].dtype == 'object':
+        df['lap_time'] = pd.to_timedelta(df['lap_time'])
     
-    print(f"✓ Loaded {len(df)} telemetry points from {filepath}")
+    print(f"✓ Loaded {len(df)} laps from {filepath}")
     print(f"   Laps: {df['lap_number'].min():.0f} → {df['lap_number'].max():.0f}")
-    print(f"   Duration: {df['overall_time'].iloc[-1]}")
     
     return df
 
 
-def row_to_json(row: pd.Series) -> Dict[str, Any]:
-    """Convert a DataFrame row to a JSON-compatible dictionary."""
+def lap_to_json(row: pd.Series) -> Dict[str, Any]:
+    """Convert a lap DataFrame row to a JSON-compatible dictionary."""
     data = {
         'lap_number': int(row['lap_number']) if pd.notna(row['lap_number']) else None,
         'total_laps': int(row['total_laps']) if pd.notna(row['total_laps']) else None,
-        'speed': float(row['speed']) if pd.notna(row['speed']) else 0.0,
-        'throttle': float(row['throttle']) if pd.notna(row['throttle']) else 0.0,
-        'brake': bool(row['brake']),
+        'lap_time': str(row['lap_time']) if pd.notna(row['lap_time']) else None,
+        'average_speed': float(row['average_speed']) if pd.notna(row['average_speed']) else 0.0,
+        'max_speed': float(row['max_speed']) if pd.notna(row['max_speed']) else 0.0,
         'tire_compound': str(row['tire_compound']) if pd.notna(row['tire_compound']) else 'UNKNOWN',
-        'tire_life_laps': float(row['tire_life_laps']) if pd.notna(row['tire_life_laps']) else 0.0,
+        'tire_life_laps': int(row['tire_life_laps']) if pd.notna(row['tire_life_laps']) else 0,
         'track_temperature': float(row['track_temperature']) if pd.notna(row['track_temperature']) else 0.0,
-        'rainfall': bool(row['rainfall']),
-        
-        # Additional race context fields
-        'track_name': 'Monza',  # From ALONSO_2023_MONZA_RACE
-        'driver_name': 'Alonso',
-        'current_position': 5,  # Mock position, could be varied
-        'fuel_level': max(0.1, 1.0 - (float(row['lap_number']) / float(row['total_laps']) * 0.8)) if pd.notna(row['lap_number']) and pd.notna(row['total_laps']) else 0.5,
+        'rainfall': bool(row['rainfall'])
     }
     return data
 
@@ -59,17 +53,17 @@ def row_to_json(row: pd.Series) -> Dict[str, Any]:
 def simulate_stream(
     df: pd.DataFrame,
     endpoint: str,
-    speed: float = 1.0,
+    interval: int = 60,
     start_lap: int = 1,
     end_lap: int = None
 ):
     """
-    Simulate live telemetry streaming based on actual time intervals in the data.
+    Simulate live telemetry streaming with fixed interval between laps.
     
     Args:
-        df: DataFrame with telemetry data
+        df: DataFrame with lap-level telemetry data
         endpoint: HPC API endpoint URL
-        speed: Playback speed multiplier (1.0 = real-time, 2.0 = 2x speed)
+        interval: Fixed interval in seconds between laps (default: 60 seconds)
         start_lap: Starting lap number
         end_lap: Ending lap number (None = all laps)
     """
@@ -79,95 +73,84 @@ def simulate_stream(
         filtered_df = filtered_df[filtered_df['lap_number'] <= end_lap].copy()
     
     if len(filtered_df) == 0:
-        print("❌ No telemetry points in specified lap range")
+        print("❌ No laps in specified lap range")
         return
     
     # Reset index for easier iteration
     filtered_df = filtered_df.reset_index(drop=True)
     
-    print(f"\n🏁 Starting telemetry stream simulation")
+    print(f"\n🏁 Starting lap-level telemetry stream simulation")
     print(f"   Endpoint: {endpoint}")
     print(f"   Laps: {start_lap} → {end_lap or 'end'}")
-    print(f"   Speed: {speed}x")
-    print(f"   Points: {len(filtered_df)}")
-    
-    total_duration = (filtered_df['overall_time'].iloc[-1] - filtered_df['overall_time'].iloc[0]).total_seconds()
-    print(f"   Duration: {total_duration:.1f}s (real-time) → {total_duration / speed:.1f}s (playback)\n")
+    print(f"   Interval: {interval} seconds between laps")
+    print(f"   Total laps: {len(filtered_df)}")
+    print(f"   Est. duration: {len(filtered_df) * interval / 60:.1f} minutes\n")
     
     sent_count = 0
     error_count = 0
-    current_lap = start_lap
     
     try:
         for i in range(len(filtered_df)):
             row = filtered_df.iloc[i]
+            lap_num = int(row['lap_number'])
             
-            # Calculate sleep time based on time difference to next row
-            if i < len(filtered_df) - 1:
-                next_row = filtered_df.iloc[i + 1]
-                time_diff = (next_row['overall_time'] - row['overall_time']).total_seconds()
-                sleep_time = time_diff / speed
-                
-                # Ensure positive sleep time
-                if sleep_time < 0:
-                    sleep_time = 0
-            else:
-                sleep_time = 0
+            # Convert lap to JSON
+            lap_data = lap_to_json(row)
             
-            # Convert row to JSON
-            telemetry_point = row_to_json(row)
-            
-            # Send telemetry point
+            # Send lap data
             try:
                 response = requests.post(
                     endpoint,
-                    json=telemetry_point,
-                    timeout=2.0
+                    json=lap_data,
+                    timeout=5.0
                 )
                 
                 if response.status_code == 200:
                     sent_count += 1
+                    progress = (i + 1) / len(filtered_df) * 100
                     
-                    # Print progress updates
-                    if row['lap_number'] > current_lap:
-                        current_lap = row['lap_number']
-                        progress = (i + 1) / len(filtered_df) * 100
-                        print(f"  📡 Lap {int(current_lap)}: {sent_count} points sent "
-                              f"({progress:.1f}% complete)")
-                    elif sent_count % 500 == 0:
-                        progress = (i + 1) / len(filtered_df) * 100
-                        print(f"  📡 Lap {int(row['lap_number'])}: {sent_count} points sent "
-                              f"({progress:.1f}% complete)")
+                    # Print lap info
+                    print(f"  📡 Lap {lap_num}/{int(row['total_laps'])}: "
+                          f"Avg Speed: {row['average_speed']:.1f} km/h, "
+                          f"Tire: {row['tire_compound']} (age: {int(row['tire_life_laps'])} laps) "
+                          f"[{progress:.0f}%]")
+                    
+                    # Show response if it contains strategies
+                    try:
+                        response_data = response.json()
+                        if 'strategies_generated' in response_data:
+                            print(f"       ✓ Generated {response_data['strategies_generated']} strategies")
+                    except:
+                        pass
                 else:
                     error_count += 1
-                    print(f"  ⚠ HTTP {response.status_code}: {response.text[:50]}")
+                    print(f"  ⚠ Lap {lap_num}: HTTP {response.status_code}: {response.text[:100]}")
                     
             except requests.RequestException as e:
                 error_count += 1
-                if error_count % 10 == 0:
-                    print(f"  ⚠ Connection error ({error_count} total): {str(e)[:50]}")
+                print(f"  ⚠ Lap {lap_num}: Connection error: {str(e)[:100]}")
             
-            # Sleep until next point should be sent
-            if sleep_time > 0:
-                time.sleep(sleep_time)
+            # Sleep for fixed interval before next lap (except for last lap)
+            if i < len(filtered_df) - 1:
+                time.sleep(interval)
         
         print(f"\n✅ Stream complete!")
-        print(f"   Sent: {sent_count} points")
+        print(f"   Sent: {sent_count} laps")
         print(f"   Errors: {error_count}")
         
     except KeyboardInterrupt:
         print(f"\n⏸ Stream interrupted by user")
-        print(f"   Sent: {sent_count}/{len(filtered_df)} points")
+        print(f"   Sent: {sent_count}/{len(filtered_df)} laps")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Simulate Raspberry Pi telemetry streaming from CSV data"
+        description="Simulate Raspberry Pi lap-level telemetry streaming"
     )
-    parser.add_argument("--endpoint", type=str, default="http://localhost:8000/telemetry",
-                        help="HPC API endpoint")
-    parser.add_argument("--speed", type=float, default=1.0, 
-                        help="Playback speed (1.0 = real-time, 10.0 = 10x speed)")
+    parser.add_argument("--endpoint", type=str, default="http://localhost:8000/ingest/telemetry",
+                        help="HPC API endpoint (default: http://localhost:8000/ingest/telemetry)")
+    parser.add_argument("--interval", type=int, default=60, 
+                        help="Fixed interval in seconds between laps (default: 60)")
     parser.add_argument("--start-lap", type=int, default=1, help="Starting lap number")
     parser.add_argument("--end-lap", type=int, default=None, help="Ending lap number")
     
@@ -176,19 +159,19 @@ def main():
     try:
         # Hardcoded CSV file location in the same folder as this script
         script_dir = Path(__file__).parent
-        data_path = script_dir / "ALONSO_2023_MONZA_RACE.csv"
+        data_path = script_dir / "ALONSO_2023_MONZA_LAPS.csv"
         
-        df = load_telemetry_csv(data_path)
+        df = load_lap_csv(data_path)
         simulate_stream(
             df,
             args.endpoint,
-            args.speed,
+            args.interval,
             args.start_lap,
             args.end_lap
         )
     except FileNotFoundError:
         print(f"❌ File not found: {data_path}")
-        print(f"   Make sure ALONSO_2023_MONZA_RACE.csv is in the scripts/ folder")
+        print(f"   Make sure ALONSO_2023_MONZA_LAPS.csv is in the scripts/ folder")
         sys.exit(1)
     except Exception as e:
         print(f"❌ Error: {e}")

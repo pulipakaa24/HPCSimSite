@@ -11,12 +11,11 @@ def build_brainstorm_prompt_fast(
     enriched_telemetry: List[EnrichedTelemetryWebhook],
     race_context: RaceContext
 ) -> str:
-    """Build a faster, more concise prompt for quicker responses."""
+    """Build a faster, more concise prompt for quicker responses (lap-level data)."""
     settings = get_settings()
     count = settings.strategy_count
     latest = max(enriched_telemetry, key=lambda x: x.lap)
-    tire_rate = TelemetryAnalyzer.calculate_tire_degradation_rate(enriched_telemetry)
-    tire_cliff = TelemetryAnalyzer.project_tire_cliff(enriched_telemetry, race_context.race_info.current_lap)
+    pit_window = latest.optimal_pit_window
     
     if count == 1:
         # Ultra-fast mode: just generate 1 strategy
@@ -24,7 +23,7 @@ def build_brainstorm_prompt_fast(
 
 CURRENT: Lap {race_context.race_info.current_lap}/{race_context.race_info.total_laps}, P{race_context.driver_state.current_position}, {race_context.driver_state.current_tire_compound} tires ({race_context.driver_state.tire_age_laps} laps old)
 
-TELEMETRY: Aero {latest.aero_efficiency:.2f}, Tire deg {latest.tire_degradation_index:.2f} (cliff lap {tire_cliff}), ERS {latest.ers_charge:.2f}
+TELEMETRY: Tire deg rate {latest.tire_degradation_rate:.2f}, Cliff risk {latest.tire_cliff_risk:.2f}, Pace {latest.pace_trend}, Pit window laps {pit_window[0]}-{pit_window[1]}
 
 Generate 1 optimal strategy. Min 2 tire compounds required.
 
@@ -36,17 +35,17 @@ JSON: {{"strategies": [{{"strategy_id": 1, "strategy_name": "name", "stop_count"
 
 CURRENT: Lap {race_context.race_info.current_lap}/{race_context.race_info.total_laps}, P{race_context.driver_state.current_position}, {race_context.driver_state.current_tire_compound} tires ({race_context.driver_state.tire_age_laps} laps old)
 
-TELEMETRY: Aero {latest.aero_efficiency:.2f}, Tire deg {latest.tire_degradation_index:.2f} (cliff lap {tire_cliff}), ERS {latest.ers_charge:.2f}, Fuel {latest.fuel_optimization_score:.2f}
+TELEMETRY: Tire deg {latest.tire_degradation_rate:.2f}, Cliff risk {latest.tire_cliff_risk:.2f}, Pace {latest.pace_trend}, Delta {latest.performance_delta:+.2f}s, Pit window {pit_window[0]}-{pit_window[1]}
 
 Generate {count} strategies: conservative (1-stop), standard (1-2 stop), aggressive (undercut). Min 2 tire compounds each.
 
-JSON: {{"strategies": [{{"strategy_id": 1, "strategy_name": "Conservative Stay Out", "stop_count": 1, "pit_laps": [35], "tire_sequence": ["medium", "hard"], "brief_description": "extend current stint then hard tires to end", "risk_level": "low", "key_assumption": "tire cliff at lap {tire_cliff}"}}]}}"""
+JSON: {{"strategies": [{{"strategy_id": 1, "strategy_name": "Conservative Stay Out", "stop_count": 1, "pit_laps": [35], "tire_sequence": ["medium", "hard"], "brief_description": "extend current stint then hard tires to end", "risk_level": "low", "key_assumption": "tire cliff risk stays below 0.7"}}]}}"""
     
     return f"""Generate {count} F1 race strategies for {race_context.driver_state.driver_name} at {race_context.race_info.track_name}.
 
 CURRENT: Lap {race_context.race_info.current_lap}/{race_context.race_info.total_laps}, P{race_context.driver_state.current_position}, {race_context.driver_state.current_tire_compound} tires ({race_context.driver_state.tire_age_laps} laps old)
 
-TELEMETRY: Aero {latest.aero_efficiency:.2f}, Tire deg {latest.tire_degradation_index:.2f} (rate {tire_rate:.3f}/lap, cliff lap {tire_cliff}), ERS {latest.ers_charge:.2f}, Fuel {latest.fuel_optimization_score:.2f}, Consistency {latest.driver_consistency:.2f}
+TELEMETRY: Tire deg rate {latest.tire_degradation_rate:.2f}, Cliff risk {latest.tire_cliff_risk:.2f}, Pace {latest.pace_trend}, Performance delta {latest.performance_delta:+.2f}s, Pit window laps {pit_window[0]}-{pit_window[1]}
 
 Generate {count} diverse strategies. Min 2 compounds.
 
@@ -67,27 +66,19 @@ def build_brainstorm_prompt(
     Returns:
         Formatted prompt string
     """
-    # Generate telemetry summary
-    telemetry_summary = TelemetryAnalyzer.generate_telemetry_summary(enriched_telemetry)
+    # Get latest telemetry
+    latest = max(enriched_telemetry, key=lambda x: x.lap)
     
-    # Calculate key metrics
-    tire_rate = TelemetryAnalyzer.calculate_tire_degradation_rate(enriched_telemetry)
-    tire_cliff_lap = TelemetryAnalyzer.project_tire_cliff(
-        enriched_telemetry,
-        race_context.race_info.current_lap
-    )
-    
-    # Format telemetry data
+    # Format telemetry data (lap-level)
     telemetry_data = []
     for t in sorted(enriched_telemetry, key=lambda x: x.lap, reverse=True)[:10]:
         telemetry_data.append({
             "lap": t.lap,
-            "aero_efficiency": round(t.aero_efficiency, 3),
-            "tire_degradation_index": round(t.tire_degradation_index, 3),
-            "ers_charge": round(t.ers_charge, 3),
-            "fuel_optimization_score": round(t.fuel_optimization_score, 3),
-            "driver_consistency": round(t.driver_consistency, 3),
-            "weather_impact": t.weather_impact
+            "tire_degradation_rate": round(t.tire_degradation_rate, 3),
+            "pace_trend": t.pace_trend,
+            "tire_cliff_risk": round(t.tire_cliff_risk, 3),
+            "optimal_pit_window": t.optimal_pit_window,
+            "performance_delta": round(t.performance_delta, 2)
         })
     
     # Format competitors
@@ -101,15 +92,14 @@ def build_brainstorm_prompt(
             "gap_seconds": round(c.gap_seconds, 1)
         })
     
-    prompt = f"""You are an expert F1 strategist. Generate 20 diverse race strategies.
+    prompt = f"""You are an expert F1 strategist. Generate 20 diverse race strategies based on lap-level telemetry.
 
-TELEMETRY METRICS:
-- aero_efficiency: <0.6 problem, >0.8 optimal
-- tire_degradation_index: >0.7 degrading, >0.85 cliff
-- ers_charge: >0.7 attack, <0.3 depleted
-- fuel_optimization_score: <0.7 save fuel
-- driver_consistency: <0.75 risky
-- weather_impact: severity level
+LAP-LEVEL TELEMETRY METRICS:
+- tire_degradation_rate: 0-1 (higher = worse tire wear)
+- tire_cliff_risk: 0-1 (probability of hitting tire cliff)
+- pace_trend: "improving", "stable", or "declining"
+- optimal_pit_window: [start_lap, end_lap] recommended pit range
+- performance_delta: seconds vs baseline (negative = slower)
 
 RACE STATE:
 Track: {race_context.race_info.track_name}
@@ -129,12 +119,11 @@ COMPETITORS:
 ENRICHED TELEMETRY (Last {len(telemetry_data)} laps, newest first):
 {telemetry_data}
 
-TELEMETRY ANALYSIS:
-{telemetry_summary}
-
 KEY INSIGHTS:
-- Tire degradation rate: {tire_rate:.3f} per lap
-- Projected tire cliff: Lap {tire_cliff_lap}
+- Latest tire degradation rate: {latest.tire_degradation_rate:.3f}
+- Latest tire cliff risk: {latest.tire_cliff_risk:.3f}
+- Latest pace trend: {latest.pace_trend}
+- Optimal pit window: Laps {latest.optimal_pit_window[0]}-{latest.optimal_pit_window[1]}
 - Laps remaining: {race_context.race_info.total_laps - race_context.race_info.current_lap}
 
 TASK: Generate exactly 20 diverse strategies.
@@ -144,7 +133,7 @@ DIVERSITY: Conservative (1-stop), Standard (balanced), Aggressive (undercut), Re
 RULES:
 - Pit laps: {race_context.race_info.current_lap + 1} to {race_context.race_info.total_laps - 1}
 - Min 2 tire compounds (F1 rule)
-- Time pits before tire cliff (projected lap {tire_cliff_lap})
+- Consider optimal pit window and tire cliff risk
 
 For each strategy provide:
 - strategy_id: 1-20

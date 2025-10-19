@@ -80,133 +80,25 @@ class StrategyValidator:
 
 
 class TelemetryAnalyzer:
-    """Analyzes enriched telemetry data to extract trends and insights."""
+    """Analyzes enriched lap-level telemetry data to extract trends and insights."""
     
     @staticmethod
     def calculate_tire_degradation_rate(telemetry: List[EnrichedTelemetryWebhook]) -> float:
         """
-        Calculate tire degradation rate per lap.
+        Calculate tire degradation rate per lap (using lap-level data).
         
         Args:
             telemetry: List of enriched telemetry records
             
         Returns:
-            Rate of tire degradation per lap (0.0 to 1.0)
-        """
-        if len(telemetry) < 2:
-            return 0.0
-        
-        # Sort by lap (ascending)
-        sorted_telemetry = sorted(telemetry, key=lambda x: x.lap)
-        
-        # Calculate rate of change
-        first = sorted_telemetry[0]
-        last = sorted_telemetry[-1]
-        
-        lap_diff = last.lap - first.lap
-        if lap_diff == 0:
-            return 0.0
-        
-        deg_diff = last.tire_degradation_index - first.tire_degradation_index
-        rate = deg_diff / lap_diff
-        
-        return max(0.0, rate)  # Ensure non-negative
-    
-    @staticmethod
-    def calculate_aero_efficiency_avg(telemetry: List[EnrichedTelemetryWebhook]) -> float:
-        """
-        Calculate average aero efficiency.
-        
-        Args:
-            telemetry: List of enriched telemetry records
-            
-        Returns:
-            Average aero efficiency (0.0 to 1.0)
+            Latest tire degradation rate (0.0 to 1.0)
         """
         if not telemetry:
             return 0.0
         
-        total = sum(t.aero_efficiency for t in telemetry)
-        return total / len(telemetry)
-    
-    @staticmethod
-    def analyze_ers_pattern(telemetry: List[EnrichedTelemetryWebhook]) -> str:
-        """
-        Analyze ERS charge pattern.
-        
-        Args:
-            telemetry: List of enriched telemetry records
-            
-        Returns:
-            Pattern description: "charging", "stable", "depleting"
-        """
-        if len(telemetry) < 2:
-            return "stable"
-        
-        # Sort by lap
-        sorted_telemetry = sorted(telemetry, key=lambda x: x.lap)
-        
-        # Look at recent trend
-        recent = sorted_telemetry[-3:] if len(sorted_telemetry) >= 3 else sorted_telemetry
-        
-        if len(recent) < 2:
-            return "stable"
-        
-        # Calculate average change
-        total_change = 0.0
-        for i in range(1, len(recent)):
-            total_change += recent[i].ers_charge - recent[i-1].ers_charge
-        
-        avg_change = total_change / (len(recent) - 1)
-        
-        if avg_change > 0.05:
-            return "charging"
-        elif avg_change < -0.05:
-            return "depleting"
-        else:
-            return "stable"
-    
-    @staticmethod
-    def is_fuel_critical(telemetry: List[EnrichedTelemetryWebhook]) -> bool:
-        """
-        Check if fuel situation is critical.
-        
-        Args:
-            telemetry: List of enriched telemetry records
-            
-        Returns:
-            True if fuel optimization score is below 0.7
-        """
-        if not telemetry:
-            return False
-        
-        # Check most recent telemetry
+        # Use latest tire degradation rate from enrichment
         latest = max(telemetry, key=lambda x: x.lap)
-        return latest.fuel_optimization_score < 0.7
-    
-    @staticmethod
-    def assess_driver_form(telemetry: List[EnrichedTelemetryWebhook]) -> str:
-        """
-        Assess driver consistency form.
-        
-        Args:
-            telemetry: List of enriched telemetry records
-            
-        Returns:
-            Form description: "excellent", "good", "inconsistent"
-        """
-        if not telemetry:
-            return "good"
-        
-        # Get average consistency
-        avg_consistency = sum(t.driver_consistency for t in telemetry) / len(telemetry)
-        
-        if avg_consistency >= 0.85:
-            return "excellent"
-        elif avg_consistency >= 0.75:
-            return "good"
-        else:
-            return "inconsistent"
+        return latest.tire_degradation_rate
     
     @staticmethod
     def project_tire_cliff(
@@ -214,65 +106,27 @@ class TelemetryAnalyzer:
         current_lap: int
     ) -> int:
         """
-        Project when tire degradation will hit 0.85 (performance cliff).
+        Project when tire cliff will be reached (using lap-level data).
         
         Args:
             telemetry: List of enriched telemetry records
             current_lap: Current lap number
             
         Returns:
-            Projected lap number when cliff will be reached
+            Estimated lap number when cliff will be reached
         """
         if not telemetry:
             return current_lap + 20  # Default assumption
         
-        # Get current degradation and rate
+        # Use tire cliff risk from enrichment
         latest = max(telemetry, key=lambda x: x.lap)
-        current_deg = latest.tire_degradation_index
+        cliff_risk = latest.tire_cliff_risk
         
-        if current_deg >= 0.85:
-            return current_lap  # Already at cliff
-        
-        # Calculate rate
-        rate = TelemetryAnalyzer.calculate_tire_degradation_rate(telemetry)
-        
-        if rate <= 0:
-            return current_lap + 50  # Not degrading, far future
-        
-        # Project laps until 0.85
-        laps_until_cliff = (0.85 - current_deg) / rate
-        projected_lap = current_lap + int(laps_until_cliff)
-        
-        return projected_lap
-    
-    @staticmethod
-    def generate_telemetry_summary(telemetry: List[EnrichedTelemetryWebhook]) -> str:
-        """
-        Generate human-readable summary of telemetry trends.
-        
-        Args:
-            telemetry: List of enriched telemetry records
-            
-        Returns:
-            Summary string
-        """
-        if not telemetry:
-            return "No telemetry data available."
-        
-        tire_rate = TelemetryAnalyzer.calculate_tire_degradation_rate(telemetry)
-        aero_avg = TelemetryAnalyzer.calculate_aero_efficiency_avg(telemetry)
-        ers_pattern = TelemetryAnalyzer.analyze_ers_pattern(telemetry)
-        fuel_critical = TelemetryAnalyzer.is_fuel_critical(telemetry)
-        driver_form = TelemetryAnalyzer.assess_driver_form(telemetry)
-        
-        latest = max(telemetry, key=lambda x: x.lap)
-        
-        summary = f"""Telemetry Analysis (Last {len(telemetry)} laps):
-- Tire degradation: {latest.tire_degradation_index:.2f} index, increasing at {tire_rate:.3f}/lap
-- Aero efficiency: {aero_avg:.2f} average
-- ERS: {latest.ers_charge:.2f} charge, {ers_pattern}
-- Fuel: {latest.fuel_optimization_score:.2f} score, {'CRITICAL' if fuel_critical else 'OK'}
-- Driver form: {driver_form} ({latest.driver_consistency:.2f} consistency)
-- Weather impact: {latest.weather_impact}"""
-        
-        return summary
+        if cliff_risk >= 0.7:
+            return current_lap + 2  # Imminent cliff
+        elif cliff_risk >= 0.4:
+            return current_lap + 5  # Approaching cliff
+        else:
+            # Estimate based on optimal pit window
+            pit_window = latest.optimal_pit_window
+            return pit_window[1] if pit_window else current_lap + 15

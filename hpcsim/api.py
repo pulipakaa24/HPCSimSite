@@ -25,24 +25,24 @@ _CALLBACK_URL = os.getenv("NEXT_STAGE_CALLBACK_URL")
 
 
 class EnrichedRecord(BaseModel):
+    """Lap-level enriched telemetry model."""
     lap: int
-    aero_efficiency: float
-    tire_degradation_index: float
-    ers_charge: float
-    fuel_optimization_score: float
-    driver_consistency: float
-    weather_impact: str
+    tire_degradation_rate: float
+    pace_trend: str
+    tire_cliff_risk: float
+    optimal_pit_window: List[int]
+    performance_delta: float
 
 
 @app.post("/ingest/telemetry")
 async def ingest_telemetry(payload: Dict[str, Any] = Body(...)):
-    """Receive raw telemetry (from Pi), normalize, enrich, return enriched with race context.
+    """Receive raw lap-level telemetry (from Pi), normalize, enrich, return enriched with race context.
 
     Optionally forwards to NEXT_STAGE_CALLBACK_URL if set.
     """
     try:
         normalized = normalize_telemetry(payload)
-        result = _enricher.enrich_with_context(normalized)
+        result = _enricher.enrich_lap_data(normalized)
         enriched = result["enriched_telemetry"]
         race_context = result["race_context"]
     except Exception as e:
@@ -85,3 +85,12 @@ async def list_enriched(limit: int = 50):
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok", "stored": len(_recent)}
+
+
+@app.post("/reset")
+async def reset_enricher():
+    """Reset enricher state for a new session/race."""
+    global _enricher
+    _enricher = Enricher()
+    _recent.clear()
+    return {"status": "reset", "message": "Enricher state and buffer cleared"}
