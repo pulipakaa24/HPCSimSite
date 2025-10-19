@@ -45,23 +45,35 @@ def test_brainstorm_with_buffer():
         method='POST'
     )
     
-    print("Testing brainstorm with buffered telemetry...")
+    print("Testing FAST brainstorm with buffered telemetry...")
+    print("(Configured for 3 strategies - fast and diverse!)")
     print("(No telemetry in request - should use webhook buffer)\n")
     
     try:
-        with urlopen(req, timeout=120) as resp:
+        with urlopen(req, timeout=60) as resp:
             response_body = resp.read().decode('utf-8')
             result = json.loads(response_body)
             
+            # Save to file
+            output_file = '/tmp/brainstorm_strategies.json'
+            with open(output_file, 'w') as f:
+                json.dump(result, f, indent=2)
+            
             print("✓ Brainstorm succeeded!")
             print(f"  Generated {len(result.get('strategies', []))} strategies")
+            print(f"  Saved to: {output_file}")
             
             if result.get('strategies'):
-                print("\n  First 3 strategies:")
-                for i, strategy in enumerate(result['strategies'][:3], 1):
-                    print(f"    {i}. {strategy.get('strategy_name')} ({strategy.get('stop_count')}-stop)")
+                print("\n  Strategies:")
+                for i, strategy in enumerate(result['strategies'], 1):
+                    print(f"    {i}. {strategy.get('strategy_name')} ({strategy.get('stop_count')}-stop, {strategy.get('risk_level')} risk)")
+                    print(f"       Tires: {' → '.join(strategy.get('tire_sequence', []))}")
+                    print(f"       Pits at: laps {strategy.get('pit_laps', [])}")
+                    print(f"       {strategy.get('brief_description')}")
+                    print()
             
-            print("\n✓ SUCCESS: AI layer is using webhook buffer!")
+            print("✓ SUCCESS: AI layer is using webhook buffer!")
+            print(f"  Full JSON saved to {output_file}")
             print("  Check the service logs - should see:")
             print("  'Using N telemetry records from webhook buffer'")
             return True

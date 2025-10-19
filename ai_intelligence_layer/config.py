@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # Fast Mode (shorter prompts)
     fast_mode: bool = True
     
+    # Strategy Generation Settings
+    strategy_count: int = 3  # Number of strategies to generate (3 for fast testing)
+    
     # Performance Settings
     brainstorm_timeout: int = 30
     analyze_timeout: int = 60

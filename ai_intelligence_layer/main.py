@@ -12,16 +12,17 @@ from typing import Dict, Any
 from config import get_settings
 from models.input_models import (
     BrainstormRequest,
-    AnalyzeRequest,
-    EnrichedTelemetryWebhook
+    # AnalyzeRequest,  # Disabled - not using analysis
+    EnrichedTelemetryWebhook,
+    RaceContext  # Import for global storage
 )
 from models.output_models import (
     BrainstormResponse,
-    AnalyzeResponse,
+    # AnalyzeResponse,  # Disabled - not using analysis
     HealthResponse
 )
 from services.strategy_generator import StrategyGenerator
-from services.strategy_analyzer import StrategyAnalyzer
+# from services.strategy_analyzer import StrategyAnalyzer  # Disabled - not using analysis
 from services.telemetry_client import TelemetryClient
 from utils.telemetry_buffer import TelemetryBuffer
 
@@ -36,23 +37,25 @@ logger = logging.getLogger(__name__)
 # Global instances
 telemetry_buffer: TelemetryBuffer = None
 strategy_generator: StrategyGenerator = None
-strategy_analyzer: StrategyAnalyzer = None
+# strategy_analyzer: StrategyAnalyzer = None  # Disabled - not using analysis
 telemetry_client: TelemetryClient = None
+current_race_context: RaceContext = None  # Store race context globally
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle manager for FastAPI application."""
-    global telemetry_buffer, strategy_generator, strategy_analyzer, telemetry_client
+    global telemetry_buffer, strategy_generator, telemetry_client
     
     settings = get_settings()
     logger.info(f"Starting AI Intelligence Layer on port {settings.ai_service_port}")
     logger.info(f"Demo mode: {settings.demo_mode}")
+    logger.info(f"Strategy count: {settings.strategy_count}")
     
     # Initialize services
     telemetry_buffer = TelemetryBuffer()
     strategy_generator = StrategyGenerator()
-    strategy_analyzer = StrategyAnalyzer()
+    # strategy_analyzer = StrategyAnalyzer()  # Disabled - not using analysis
     telemetry_client = TelemetryClient()
     
     logger.info("All services initialized successfully")
@@ -163,12 +166,15 @@ async def brainstorm_strategies(request: BrainstormRequest):
         )
 
 
+# ANALYSIS ENDPOINT DISABLED FOR SPEED
+# Uncomment below to re-enable full analysis workflow
+"""
 @app.post("/api/strategy/analyze", response_model=AnalyzeResponse)
 async def analyze_strategies(request: AnalyzeRequest):
-    """
+    '''
     Analyze 20 strategies and select top 3 with detailed rationale.
     This is Step 2 of the AI strategy process.
-    """
+    '''
     try:
         logger.info(f"Analyzing {len(request.strategies)} strategies")
         logger.info(f"Current lap: {request.race_context.race_info.current_lap}")
@@ -209,6 +215,7 @@ async def analyze_strategies(request: AnalyzeRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Strategy analysis failed: {str(e)}"
         )
+"""
 
 
 if __name__ == "__main__":
@@ -220,3 +227,4 @@ if __name__ == "__main__":
         port=settings.ai_service_port,
         reload=True
     )
+

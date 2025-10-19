@@ -12,22 +12,45 @@ def build_brainstorm_prompt_fast(
     race_context: RaceContext
 ) -> str:
     """Build a faster, more concise prompt for quicker responses."""
+    settings = get_settings()
+    count = settings.strategy_count
     latest = max(enriched_telemetry, key=lambda x: x.lap)
     tire_rate = TelemetryAnalyzer.calculate_tire_degradation_rate(enriched_telemetry)
     tire_cliff = TelemetryAnalyzer.project_tire_cliff(enriched_telemetry, race_context.race_info.current_lap)
     
-    return f"""Generate 20 F1 race strategies for {race_context.driver_state.driver_name} at {race_context.race_info.track_name}.
+    if count == 1:
+        # Ultra-fast mode: just generate 1 strategy
+        return f"""Generate 1 F1 race strategy for {race_context.driver_state.driver_name} at {race_context.race_info.track_name}.
+
+CURRENT: Lap {race_context.race_info.current_lap}/{race_context.race_info.total_laps}, P{race_context.driver_state.current_position}, {race_context.driver_state.current_tire_compound} tires ({race_context.driver_state.tire_age_laps} laps old)
+
+TELEMETRY: Aero {latest.aero_efficiency:.2f}, Tire deg {latest.tire_degradation_index:.2f} (cliff lap {tire_cliff}), ERS {latest.ers_charge:.2f}
+
+Generate 1 optimal strategy. Min 2 tire compounds required.
+
+JSON: {{"strategies": [{{"strategy_id": 1, "strategy_name": "name", "stop_count": 1, "pit_laps": [32], "tire_sequence": ["medium", "hard"], "brief_description": "one sentence", "risk_level": "medium", "key_assumption": "main assumption"}}]}}"""
+    
+    elif count <= 5:
+        # Fast mode: 2-5 strategies with different approaches
+        return f"""Generate {count} diverse F1 race strategies for {race_context.driver_state.driver_name} at {race_context.race_info.track_name}.
+
+CURRENT: Lap {race_context.race_info.current_lap}/{race_context.race_info.total_laps}, P{race_context.driver_state.current_position}, {race_context.driver_state.current_tire_compound} tires ({race_context.driver_state.tire_age_laps} laps old)
+
+TELEMETRY: Aero {latest.aero_efficiency:.2f}, Tire deg {latest.tire_degradation_index:.2f} (cliff lap {tire_cliff}), ERS {latest.ers_charge:.2f}, Fuel {latest.fuel_optimization_score:.2f}
+
+Generate {count} strategies: conservative (1-stop), standard (1-2 stop), aggressive (undercut). Min 2 tire compounds each.
+
+JSON: {{"strategies": [{{"strategy_id": 1, "strategy_name": "Conservative Stay Out", "stop_count": 1, "pit_laps": [35], "tire_sequence": ["medium", "hard"], "brief_description": "extend current stint then hard tires to end", "risk_level": "low", "key_assumption": "tire cliff at lap {tire_cliff}"}}]}}"""
+    
+    return f"""Generate {count} F1 race strategies for {race_context.driver_state.driver_name} at {race_context.race_info.track_name}.
 
 CURRENT: Lap {race_context.race_info.current_lap}/{race_context.race_info.total_laps}, P{race_context.driver_state.current_position}, {race_context.driver_state.current_tire_compound} tires ({race_context.driver_state.tire_age_laps} laps old)
 
 TELEMETRY: Aero {latest.aero_efficiency:.2f}, Tire deg {latest.tire_degradation_index:.2f} (rate {tire_rate:.3f}/lap, cliff lap {tire_cliff}), ERS {latest.ers_charge:.2f}, Fuel {latest.fuel_optimization_score:.2f}, Consistency {latest.driver_consistency:.2f}
 
-Generate 20 strategies: 4 conservative (1-stop), 6 standard (1-2 stop), 6 aggressive (undercut/overcut), 2 reactive, 2 contingency (SC/rain).
+Generate {count} diverse strategies. Min 2 compounds.
 
-Rules: Pit laps {race_context.race_info.current_lap + 1}-{race_context.race_info.total_laps - 1}, min 2 compounds.
-
-JSON format:
-{{"strategies": [{{"strategy_id": 1, "strategy_name": "name", "stop_count": 1, "pit_laps": [32], "tire_sequence": ["medium", "hard"], "brief_description": "one sentence", "risk_level": "low|medium|high|critical", "key_assumption": "main assumption"}}]}}"""
+JSON: {{"strategies": [{{"strategy_id": 1, "strategy_name": "name", "stop_count": 1, "pit_laps": [32], "tire_sequence": ["medium", "hard"], "brief_description": "one sentence", "risk_level": "low|medium|high|critical", "key_assumption": "main assumption"}}]}}"""
 
 
 def build_brainstorm_prompt(

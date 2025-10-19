@@ -27,7 +27,7 @@ SAMPLE_TELEMETRY = {
     "ers_charge": 0.78,
     "fuel_optimization_score": 0.82,
     "driver_consistency": 0.88,
-    "weather_impact": "low"a
+    "weather_impact": "low"
 }
 
 def post_telemetry(telemetry_data):
