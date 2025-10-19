@@ -158,8 +158,6 @@ def main():
     parser = argparse.ArgumentParser(
         description="Simulate Raspberry Pi telemetry streaming from CSV data"
     )
-    parser.add_argument("--data", type=str, default="ALONSO_2023_MONZA_RACE",
-                        help="Path to telemetry CSV file")
     parser.add_argument("--endpoint", type=str, default="http://localhost:8000/telemetry",
                         help="HPC API endpoint")
     parser.add_argument("--speed", type=float, default=1.0, 
@@ -170,12 +168,9 @@ def main():
     args = parser.parse_args()
     
     try:
-        # Handle relative paths from the project root
-        data_path = Path(args.data)
-        if not data_path.is_absolute():
-            # Try relative to script location first
-            script_dir = Path(__file__).parent.parent
-            data_path = script_dir / args.data
+        # Hardcoded CSV file location in the same folder as this script
+        script_dir = Path(__file__).parent
+        data_path = script_dir / "ALONSO_2023_MONZA_RACE.csv"
         
         df = load_telemetry_csv(data_path)
         simulate_stream(
@@ -186,8 +181,8 @@ def main():
             args.end_lap
         )
     except FileNotFoundError:
-        print(f"❌ File not found: {args.data}")
-        print(f"   Tried: {data_path}")
+        print(f"❌ File not found: {data_path}")
+        print(f"   Make sure ALONSO_2023_MONZA_RACE.csv is in the scripts/ folder")
         sys.exit(1)
     except Exception as e:
         print(f"❌ Error: {e}")
