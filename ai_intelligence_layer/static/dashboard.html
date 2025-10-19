@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>F1 AI Intelligence Layer - Vehicle Dashboard</title>
+    <title>Vehicle Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700;900&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -11,235 +12,646 @@
             box-sizing: border-box;
         }
         
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        @keyframes glow-pulse {
+            0%, 100% { 
+                box-shadow: 0 0 20px rgba(220, 38, 38, 0.3),
+                            0 0 40px rgba(220, 38, 38, 0.1),
+                            inset 0 0 20px rgba(220, 38, 38, 0.1);
+            }
+            50% { 
+                box-shadow: 0 0 30px rgba(220, 38, 38, 0.5),
+                            0 0 60px rgba(220, 38, 38, 0.2),
+                            inset 0 0 30px rgba(220, 38, 38, 0.2);
+            }
+        }
+        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
+            font-family: 'Rajdhani', sans-serif;
+            background: #000000;
+            background-image: 
+                radial-gradient(circle at 20% 50%, rgba(220, 38, 38, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 50%, rgba(127, 29, 29, 0.15) 0%, transparent 50%),
+                linear-gradient(180deg, #000000 0%, #0a0a0a 50%, #000000 100%);
+            background-size: 200% 200%;
+            animation: gradient-shift 15s ease infinite;
+            color: #ffffff;
             padding: 20px;
             min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
         }
         
         .header {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
+            background: rgba(10, 10, 10, 0.6);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            border-radius: 16px;
+            padding: 25px 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
+                        0 0 40px rgba(220, 38, 38, 0.1),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(220, 38, 38, 0.1), transparent);
+            animation: slide 3s ease-in-out infinite;
+        }
+        
+        @keyframes slide {
+            0% { left: -100%; }
+            100% { left: 100%; }
         }
         
         .header h1 {
-            color: #667eea;
-            margin-bottom: 5px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            font-size: 32px;
+            background: linear-gradient(135deg, #ffffff 0%, #dc2626 50%, #7f1d1d 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            position: relative;
         }
         
-        .header .status {
-            display: inline-block;
-            padding: 5px 15px;
-            border-radius: 20px;
+        .header p {
+            color: rgba(255, 255, 255, 0.7);
             font-size: 14px;
-            font-weight: bold;
+            letter-spacing: 1px;
+            font-weight: 400;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+            font-family: 'Orbitron', sans-serif;
         }
         
         .status.connected {
-            background: #10b981;
-            color: white;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(5, 150, 105, 0.3));
+            border: 1px solid rgba(16, 185, 129, 0.5);
+            color: #10b981;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.3),
+                        inset 0 0 10px rgba(16, 185, 129, 0.1);
         }
         
         .status.disconnected {
-            background: #ef4444;
-            color: white;
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(220, 38, 38, 0.3));
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            color: #ef4444;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.3),
+                        inset 0 0 10px rgba(239, 68, 68, 0.1);
+        }
+        
+        .status.connecting {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.3), rgba(217, 119, 6, 0.3));
+            border: 1px solid rgba(245, 158, 11, 0.5);
+            color: #f59e0b;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.3),
+                        inset 0 0 10px rgba(245, 158, 11, 0.1);
         }
         
         .vehicle-card {
-            background: white;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            background: rgba(15, 15, 15, 0.7);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(220, 38, 38, 0.2);
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5),
+                        0 0 40px rgba(220, 38, 38, 0.05),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .vehicle-card::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(135deg, rgba(220, 38, 38, 0.3), rgba(127, 29, 29, 0.1));
+            border-radius: 16px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: -1;
+        }
+        
+        .vehicle-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(220, 38, 38, 0.4);
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6),
+                        0 0 60px rgba(220, 38, 38, 0.15),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+        
+        .vehicle-card:hover::before {
+            opacity: 1;
         }
         
         .vehicle-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #e5e7eb;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(220, 38, 38, 0.2);
+            position: relative;
+        }
+        
+        .vehicle-header::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 30%;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(220, 38, 38, 0.8), transparent);
         }
         
         .vehicle-header h2 {
-            color: #667eea;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 26px;
+            background: linear-gradient(135deg, #ffffff 0%, #dc2626 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 1px;
         }
         
         .vehicle-info {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 15px;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
         
         .info-box {
-            background: #f3f4f6;
-            padding: 12px;
-            border-radius: 8px;
+            background: rgba(20, 20, 20, 0.6);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(220, 38, 38, 0.15);
+            padding: 18px;
+            border-radius: 12px;
             text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .info-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(220, 38, 38, 0.5), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .info-box:hover {
+            background: rgba(25, 25, 25, 0.8);
+            border-color: rgba(220, 38, 38, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(220, 38, 38, 0.15);
+        }
+        
+        .info-box:hover::before {
+            opacity: 1;
         }
         
         .info-box .label {
-            font-size: 12px;
-            color: #6b7280;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
             text-transform: uppercase;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
+            letter-spacing: 1.5px;
+            font-weight: 600;
         }
         
         .info-box .value {
-            font-size: 20px;
-            font-weight: bold;
-            color: #1f2937;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(220, 38, 38, 0.5);
         }
         
         .controls {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 15px;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #fef3c7;
-            border-radius: 8px;
-            border-left: 4px solid #f59e0b;
+            margin-bottom: 25px;
+            padding: 20px;
+            background: rgba(220, 38, 38, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            box-shadow: inset 0 0 20px rgba(220, 38, 38, 0.05);
+            animation: glow-pulse 3s ease-in-out infinite;
         }
         
         .control-item {
             display: flex;
             align-items: center;
-            gap: 10px;
+            justify-content: center;
+            gap: 8px;
         }
         
         .control-label {
-            font-weight: bold;
-            color: #92400e;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.8);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-size: 13px;
         }
         
         .control-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #d97706;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 32px;
+            font-weight: 900;
+            color: #dc2626;
+            text-shadow: 0 0 15px rgba(220, 38, 38, 0.7),
+                         0 0 30px rgba(220, 38, 38, 0.4);
         }
         
         .strategy-box {
-            background: #dbeafe;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border-left: 4px solid #3b82f6;
+            background: rgba(220, 38, 38, 0.08);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: inset 0 0 30px rgba(220, 38, 38, 0.05),
+                        0 4px 20px rgba(0, 0, 0, 0.3);
         }
         
         .strategy-box h3 {
-            color: #1e40af;
-            margin-bottom: 10px;
+            font-family: 'Orbitron', sans-serif;
+            color: #ffffff;
+            margin-bottom: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+        
+        .strategy-box p {
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.6;
         }
         
         .strategy-box .risk {
             display: inline-block;
-            padding: 3px 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: bold;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
             text-transform: uppercase;
-            margin-left: 10px;
+            margin-left: 12px;
+            letter-spacing: 1px;
+            font-family: 'Orbitron', sans-serif;
         }
         
         .risk.low {
-            background: #10b981;
-            color: white;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(5, 150, 105, 0.3));
+            border: 1px solid rgba(16, 185, 129, 0.5);
+            color: #10b981;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
         }
         
         .risk.medium {
-            background: #f59e0b;
-            color: white;
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.3), rgba(217, 119, 6, 0.3));
+            border: 1px solid rgba(245, 158, 11, 0.5);
+            color: #f59e0b;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
         }
         
         .risk.high {
-            background: #ef4444;
-            color: white;
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(220, 38, 38, 0.3));
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            color: #ef4444;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
         }
         
         .risk.critical {
-            background: #7f1d1d;
-            color: white;
+            background: linear-gradient(135deg, rgba(127, 29, 29, 0.5), rgba(220, 38, 38, 0.5));
+            border: 1px solid rgba(220, 38, 38, 0.7);
+            color: #ffffff;
+            box-shadow: 0 0 15px rgba(220, 38, 38, 0.5);
         }
         
         table {
             width: 100%;
             border-collapse: collapse;
-            background: white;
+            background: rgba(10, 10, 10, 0.4);
+            border-radius: 12px;
+            overflow: hidden;
         }
         
         th {
-            background: #667eea;
-            color: white;
-            padding: 12px;
+            background: linear-gradient(135deg, rgba(220, 38, 38, 0.3), rgba(127, 29, 29, 0.3));
+            color: #ffffff;
+            padding: 16px 14px;
             text-align: left;
-            font-weight: bold;
+            font-weight: 700;
+            font-size: 12px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            border-bottom: 2px solid rgba(220, 38, 38, 0.5);
         }
         
         td {
-            padding: 10px 12px;
-            border-bottom: 1px solid #e5e7eb;
+            padding: 14px;
+            border-bottom: 1px solid rgba(220, 38, 38, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 500;
         }
         
-        tr:hover {
-            background: #f9fafb;
+        tbody tr {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        tbody tr:hover {
+            background: rgba(220, 38, 38, 0.08);
+            box-shadow: inset 0 0 20px rgba(220, 38, 38, 0.1);
+        }
+        
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            animation: fadeIn 0.2s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .modal-content {
+            background: rgba(15, 15, 15, 0.95);
+            backdrop-filter: blur(30px) saturate(180%);
+            -webkit-backdrop-filter: blur(30px) saturate(180%);
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            border-radius: 16px;
+            margin: 5% auto;
+            padding: 30px;
+            width: 80%;
+            max-width: 900px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8),
+                        0 0 80px rgba(220, 38, 38, 0.2),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(220, 38, 38, 0.2);
+        }
+        
+        .modal-header h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff 0%, #dc2626 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 1px;
+        }
+        
+        .close {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 32px;
+            font-weight: 300;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            line-height: 1;
+        }
+        
+        .close:hover {
+            color: #dc2626;
+            transform: scale(1.1);
+        }
+        
+        .modal-body {
+            color: rgba(255, 255, 255, 0.9);
+            line-height: 1.8;
+        }
+        
+        .modal-section {
+            margin-bottom: 25px;
+        }
+        
+        .modal-section h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            color: #dc2626;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .modal-section p {
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 10px;
+        }
+        
+        .modal-data {
+            background: rgba(220, 38, 38, 0.05);
+            border: 1px solid rgba(220, 38, 38, 0.2);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: 'Rajdhani', sans-serif;
+        }
+        
+        .modal-data-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(220, 38, 38, 0.1);
+        }
+        
+        .modal-data-row:last-child {
+            border-bottom: none;
+        }
+        
+        .modal-data-label {
+            color: rgba(255, 255, 255, 0.6);
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+        
+        .modal-data-value {
+            color: #ffffff;
+            font-weight: 600;
+            font-family: 'Orbitron', sans-serif;
+        }
+        
+        .no-strategy-message {
+            text-align: center;
+            padding: 40px;
+            color: rgba(255, 255, 255, 0.5);
+            font-style: italic;
+            background: rgba(220, 38, 38, 0.05);
+            border-radius: 8px;
+            border: 1px dashed rgba(220, 38, 38, 0.2);
         }
         
         .no-data {
             text-align: center;
-            padding: 40px;
-            color: #9ca3af;
+            padding: 60px 40px;
+            color: rgba(255, 255, 255, 0.4);
             font-style: italic;
+            font-size: 16px;
+            letter-spacing: 1px;
         }
         
         .timestamp {
-            font-size: 12px;
-            color: #6b7280;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 0.5px;
+            font-family: 'Orbitron', sans-serif;
         }
         
         .badge {
             display: inline-block;
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: bold;
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-family: 'Orbitron', sans-serif;
         }
         
         .badge.improving {
-            background: #d1fae5;
-            color: #065f46;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.25));
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            color: #10b981;
         }
         
         .badge.stable {
-            background: #dbeafe;
-            color: #1e40af;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(37, 99, 235, 0.25));
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            color: #3b82f6;
         }
         
         .badge.declining {
-            background: #fee2e2;
-            color: #991b1b;
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(220, 38, 38, 0.25));
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #ef4444;
+        }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, rgba(220, 38, 38, 0.5), rgba(127, 29, 29, 0.5));
+            border-radius: 5px;
+            border: 2px solid rgba(0, 0, 0, 0.3);
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, rgba(220, 38, 38, 0.7), rgba(127, 29, 29, 0.7));
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🏎️ F1 AI Intelligence Layer Dashboard</h1>
-        <p>Real-time vehicle telemetry, strategy generation, and control outputs</p>
-        <div style="margin-top: 10px;">
-            <span class="status connected" id="wsStatus">● Connecting...</span>
+        <h1>PERFORMANCE REPORT</h1>
+        <p>REAL-TIME VEHICLE TELEMETRY • STRATEGY GENERATION • CONTROL OUTPUTS</p>
+        <div style="margin-top: 15px;">
+            <span class="status connecting" id="wsStatus">● CONNECTING...</span>
         </div>
     </div>
     
     <div id="vehicles">
         <div class="no-data">
-            No vehicle connections yet. Waiting for Pi clients to connect...
+            ⚠️ NO VEHICLE CONNECTIONS • AWAITING PI CLIENT TELEMETRY STREAM...
+        </div>
+    </div>
+    
+    <!-- Modal for displaying lap details and AI reasoning -->
+    <div id="lapModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">LAP DETAILS</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Content will be populated by JavaScript -->
+            </div>
         </div>
     </div>
     
@@ -251,13 +663,31 @@
         let ws = null;
         let reconnectInterval = null;
         
+        function updateStatus() {
+            const statusElement = document.getElementById('wsStatus');
+            const connectedVehicles = Array.from(vehicles.values()).filter(v => v.connected);
+            
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                statusElement.textContent = '● WS DISCONNECTED';
+                statusElement.className = 'status disconnected';
+            } else if (connectedVehicles.length === 0) {
+                statusElement.textContent = '● NO VEHICLES';
+                statusElement.className = 'status disconnected';
+            } else if (connectedVehicles.length === 1) {
+                statusElement.textContent = '● 1 VEHICLE ACTIVE';
+                statusElement.className = 'status connected';
+            } else {
+                statusElement.textContent = `● ${connectedVehicles.length} VEHICLES ACTIVE`;
+                statusElement.className = 'status connected';
+            }
+        }
+        
         function connect() {
             ws = new WebSocket('ws://localhost:9000/ws/dashboard');
             
             ws.onopen = () => {
                 console.log('Dashboard WebSocket connected');
-                document.getElementById('wsStatus').textContent = '● Connected';
-                document.getElementById('wsStatus').className = 'status connected';
+                updateStatus();
                 clearInterval(reconnectInterval);
             };
             
@@ -268,8 +698,7 @@
             
             ws.onclose = () => {
                 console.log('Dashboard WebSocket disconnected');
-                document.getElementById('wsStatus').textContent = '● Disconnected';
-                document.getElementById('wsStatus').className = 'status disconnected';
+                updateStatus();
                 
                 // Try to reconnect every 3 seconds
                 if (!reconnectInterval) {
@@ -307,6 +736,7 @@
                     currentControls: { brake_bias: 5, differential_slip: 5 },
                     currentStrategy: null
                 });
+                updateStatus();
                 renderVehicles();
             }
         }
@@ -315,6 +745,7 @@
             if (vehicles.has(vehicleId)) {
                 const vehicle = vehicles.get(vehicleId);
                 vehicle.connected = false;
+                updateStatus();
                 renderVehicles();
             }
         }
@@ -347,7 +778,7 @@
             const container = document.getElementById('vehicles');
             
             if (vehicles.size === 0) {
-                container.innerHTML = '<div class="no-data">No vehicle connections yet. Waiting for Pi clients to connect...</div>';
+                container.innerHTML = '<div class="no-data">⚠️ NO VEHICLE CONNECTIONS • AWAITING PI CLIENT TELEMETRY STREAM...</div>';
                 return;
             }
             
@@ -358,16 +789,16 @@
                 card.className = 'vehicle-card';
                 
                 const statusBadge = vehicle.connected 
-                    ? '<span class="status connected">● Connected</span>'
-                    : '<span class="status disconnected">● Disconnected</span>';
+                    ? '<span class="status connected">● CONNECTED</span>'
+                    : '<span class="status disconnected">● DISCONNECTED</span>';
                 
                 let strategyHtml = '';
                 if (vehicle.currentStrategy) {
                     strategyHtml = `
                         <div class="strategy-box">
                             <h3>
-                                Current Strategy: ${vehicle.currentStrategy.strategy_name}
-                                <span class="risk ${vehicle.currentStrategy.risk_level}">${vehicle.currentStrategy.risk_level}</span>
+                                ACTIVE STRATEGY: ${vehicle.currentStrategy.strategy_name.toUpperCase()}
+                                <span class="risk ${vehicle.currentStrategy.risk_level}">${vehicle.currentStrategy.risk_level.toUpperCase()}</span>
                             </h3>
                             <p>${vehicle.currentStrategy.brief_description || ''}</p>
                         </div>
@@ -377,8 +808,8 @@
                 card.innerHTML = `
                     <div class="vehicle-header">
                         <div>
-                            <h2>Vehicle #${vehicleId}</h2>
-                            <span class="timestamp">Connected: ${new Date(vehicle.connectedAt).toLocaleString()}</span>
+                            <h2>VEHICLE #${vehicleId}</h2>
+                            <span class="timestamp">CONNECTED: ${new Date(vehicle.connectedAt).toLocaleString().toUpperCase()}</span>
                         </div>
                         ${statusBadge}
                     </div>
@@ -389,29 +820,29 @@
                             <div class="value">${vehicle.laps.length}</div>
                         </div>
                         <div class="info-box">
-                            <div class="label">Last Lap</div>
+                            <div class="label">Current Lap</div>
                             <div class="value">${vehicle.laps.length > 0 ? vehicle.laps[vehicle.laps.length - 1].lap : 'N/A'}</div>
                         </div>
                         <div class="info-box">
-                            <div class="label">Strategies Generated</div>
+                            <div class="label">Strategies</div>
                             <div class="value">${vehicle.laps.filter(l => l.strategy).length}</div>
                         </div>
                     </div>
                     
                     <div class="controls">
                         <div class="control-item">
-                            <span class="control-label">Brake Bias:</span>
+                            <span class="control-label">Brake Bias</span>
                             <span class="control-value">${vehicle.currentControls.brake_bias}</span>
                         </div>
                         <div class="control-item">
-                            <span class="control-label">Differential Slip:</span>
+                            <span class="control-label">Diff Slip</span>
                             <span class="control-value">${vehicle.currentControls.differential_slip}</span>
                         </div>
                     </div>
                     
                     ${strategyHtml}
                     
-                    <h3 style="margin-bottom: 10px;">Lap History</h3>
+                    <h3 style="margin-bottom: 15px; font-family: 'Orbitron', sans-serif; color: rgba(255,255,255,0.9); font-size: 16px; letter-spacing: 1px;">LAP HISTORY</h3>
                     ${renderLapTable(vehicle.laps)}
                 `;
                 
@@ -421,7 +852,7 @@
         
         function renderLapTable(laps) {
             if (laps.length === 0) {
-                return '<div class="no-data">No lap data yet...</div>';
+                return '<div class="no-data">NO LAP DATA RECORDED YET...</div>';
             }
             
             // Reverse to show most recent first
@@ -431,26 +862,26 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>Lap</th>
-                            <th>Tire Deg</th>
-                            <th>Pace Trend</th>
-                            <th>Cliff Risk</th>
-                            <th>Brake Bias</th>
-                            <th>Diff Slip</th>
-                            <th>Strategy</th>
-                            <th>Time</th>
+                            <th>LAP</th>
+                            <th>TIRE DEG</th>
+                            <th>PACE TREND</th>
+                            <th>CLIFF RISK</th>
+                            <th>BRAKE</th>
+                            <th>DIFF</th>
+                            <th>STRATEGY</th>
+                            <th>TIME</th>
                         </tr>
                     </thead>
                     <tbody>
             `;
             
-            reversedLaps.forEach(lap => {
+            reversedLaps.forEach((lap, index) => {
                 const controls = lap.control_output || { brake_bias: '-', differential_slip: '-' };
-                const strategy = lap.strategy ? lap.strategy.strategy_name : '-';
-                const trendBadge = lap.pace_trend ? `<span class="badge ${lap.pace_trend}">${lap.pace_trend}</span>` : '-';
+                const strategy = lap.strategy ? lap.strategy.strategy_name.toUpperCase() : '-';
+                const trendBadge = lap.pace_trend ? `<span class="badge ${lap.pace_trend}">${lap.pace_trend.toUpperCase()}</span>` : '-';
                 
                 tableHtml += `
-                    <tr>
+                    <tr onclick='showLapDetails(${JSON.stringify(lap).replace(/'/g, "&#39;")})' style="cursor: pointer;">
                         <td><strong>${lap.lap}</strong></td>
                         <td>${(lap.tire_degradation_rate * 100).toFixed(0)}%</td>
                         <td>${trendBadge}</td>
@@ -466,6 +897,117 @@
             tableHtml += '</tbody></table>';
             return tableHtml;
         }
+        
+        function showLapDetails(lap) {
+            const modal = document.getElementById('lapModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            
+            modalTitle.textContent = `LAP ${lap.lap} DETAILS`;
+            
+            let bodyHtml = '';
+            
+            // Telemetry data section
+            bodyHtml += `
+                <div class="modal-section">
+                    <h3>Telemetry Data</h3>
+                    <div class="modal-data">
+                        <div class="modal-data-row">
+                            <span class="modal-data-label">Tire Degradation Rate</span>
+                            <span class="modal-data-value">${(lap.tire_degradation_rate * 100).toFixed(1)}%</span>
+                        </div>
+                        <div class="modal-data-row">
+                            <span class="modal-data-label">Tire Cliff Risk</span>
+                            <span class="modal-data-value">${(lap.tire_cliff_risk * 100).toFixed(1)}%</span>
+                        </div>
+                        <div class="modal-data-row">
+                            <span class="modal-data-label">Pace Trend</span>
+                            <span class="modal-data-value">${lap.pace_trend || 'N/A'}</span>
+                        </div>
+                        ${lap.competitive_pressure !== undefined ? `
+                        <div class="modal-data-row">
+                            <span class="modal-data-label">Competitive Pressure</span>
+                            <span class="modal-data-value">${(lap.competitive_pressure * 100).toFixed(1)}%</span>
+                        </div>
+                        ` : ''}
+                        ${lap.position_trend !== undefined ? `
+                        <div class="modal-data-row">
+                            <span class="modal-data-label">Position Trend</span>
+                            <span class="modal-data-value">${lap.position_trend.toUpperCase()}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            
+            // Control outputs section
+            if (lap.control_output) {
+                bodyHtml += `
+                    <div class="modal-section">
+                        <h3>Control Outputs</h3>
+                        <div class="modal-data">
+                            <div class="modal-data-row">
+                                <span class="modal-data-label">Brake Bias</span>
+                                <span class="modal-data-value">${lap.control_output.brake_bias}</span>
+                            </div>
+                            <div class="modal-data-row">
+                                <span class="modal-data-label">Differential Slip</span>
+                                <span class="modal-data-value">${lap.control_output.differential_slip}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Strategy section
+            if (lap.strategy) {
+                bodyHtml += `
+                    <div class="modal-section">
+                        <h3>AI Strategy: ${lap.strategy.strategy_name}</h3>
+                        <p><strong>Risk Level:</strong> <span class="risk ${lap.strategy.risk_level}">${lap.strategy.risk_level.toUpperCase()}</span></p>
+                        ${lap.strategy.brief_description ? `<p><strong>Description:</strong> ${lap.strategy.brief_description}</p>` : ''}
+                        ${lap.strategy.reasoning ? `
+                        <div style="margin-top: 15px;">
+                            <h4 style="color: rgba(255,255,255,0.8); margin-bottom: 10px; font-size: 14px;">AI Reasoning:</h4>
+                            <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; border-left: 3px solid #dc2626;">
+                                <p style="white-space: pre-wrap; font-family: 'Rajdhani', sans-serif; line-height: 1.6;">${lap.strategy.reasoning}</p>
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            } else {
+                bodyHtml += `
+                    <div class="modal-section">
+                        <div class="no-strategy-message">
+                            ⚠️ NO AI STRATEGY GENERATED FOR THIS LAP<br>
+                            <small style="margin-top: 10px; display: block; font-size: 12px;">
+                                AI strategies are typically generated starting from lap 3 onwards
+                            </small>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            modalBody.innerHTML = bodyHtml;
+            modal.style.display = 'block';
+        }
+        
+        // Modal close handlers
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('lapModal');
+            const closeBtn = document.querySelector('.close');
+            
+            closeBtn.onclick = function() {
+                modal.style.display = 'none';
+            }
+            
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                }
+            }
+        });
         
         // Initialize connection
         connect();
