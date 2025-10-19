@@ -9,7 +9,7 @@ Connects to AI Intelligence Layer via WebSocket and:
 4. Generates voice announcements for strategy updates
 
 Usage:
-    python simulate_pi_websocket.py --interval 5 --ws-url ws://localhost:9000/ws/pi --enable-voice
+    python simulate_pi_websocket.py --interval 5 --ws-url ws://10.159.65.108:9000/ws/pi --enable-voice
 """
 from __future__ import annotations
 
@@ -306,7 +306,7 @@ class VoiceAnnouncer:
 class PiSimulator:
     """WebSocket-based Pi simulator with control feedback and voice announcements."""
     
-    def __init__(self, csv_path: Path, ws_url: str, interval: float = 60.0, enrichment_url: str = "http://localhost:8000", voice_enabled: bool = False):
+    def __init__(self, csv_path: Path, ws_url: str, interval: float = 60.0, enrichment_url: str = "http://10.159.65.108:8000", voice_enabled: bool = False):
         self.csv_path = csv_path
         self.ws_url = ws_url
         self.enrichment_url = enrichment_url
@@ -753,14 +753,14 @@ async def main():
     parser.add_argument(
         "--ws-url",
         type=str,
-        default="ws://localhost:9000/ws/pi",
-        help="WebSocket URL for AI layer (default: ws://localhost:9000/ws/pi)"
+        default="ws://10.159.65.108:9000/ws/pi",
+        help="WebSocket URL for AI layer (default: ws://10.159.65.108:9000/ws/pi)"
     )
     parser.add_argument(
         "--enrichment-url",
         type=str,
-        default="http://localhost:8000",
-        help="Enrichment service URL (default: http://localhost:8000)"
+        default="http://10.159.65.108:8000",
+        help="Enrichment service URL (default: http://10.159.65.108:8000)"
     )
     parser.add_argument(
         "--csv",
