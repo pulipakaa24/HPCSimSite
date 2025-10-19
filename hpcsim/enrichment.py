@@ -10,6 +10,9 @@ import pandas as pd
 # {
 #   "lap_number": 27,
 #   "total_laps": 51,
+#   "position": 5,
+#   "gap_to_leader": 12.345,
+#   "gap_to_ahead": 2.456,
 #   "lap_time": "0 days 00:01:27.318000",
 #   "average_speed": 234.62,
 #   "max_speed": 333.0,
@@ -36,6 +39,8 @@ class EnricherState:
     """Maintains race state across laps for trend analysis."""
     lap_times: List[float] = field(default_factory=list)  # Recent lap times in seconds
     lap_speeds: List[float] = field(default_factory=list)  # Recent average speeds
+    positions: List[int] = field(default_factory=list)  # Recent positions
+    gaps_to_ahead: List[float] = field(default_factory=list)  # Recent gaps to car ahead
     current_tire_age: int = 0
     current_tire_compound: str = "medium"
     tire_stint_start_lap: int = 1
@@ -63,6 +68,9 @@ class Enricher:
         # Extract lap data
         lap_number = int(lap_data.get("lap_number", 0))
         total_laps = int(lap_data.get("total_laps", 51))
+        position = int(lap_data.get("position", 10))
+        gap_to_leader = float(lap_data.get("gap_to_leader", 0.0))
+        gap_to_ahead = float(lap_data.get("gap_to_ahead", 0.0))
         lap_time_str = lap_data.get("lap_time")
         average_speed = float(lap_data.get("average_speed", 0.0))
         max_speed = float(lap_data.get("max_speed", 0.0))
@@ -77,6 +85,8 @@ class Enricher:
         # Update state
         self.state.lap_times.append(lap_time_seconds)
         self.state.lap_speeds.append(average_speed)
+        self.state.positions.append(position)
+        self.state.gaps_to_ahead.append(gap_to_ahead)
         self.state.current_tire_age = tire_life_laps
         self.state.current_tire_compound = tire_compound
         self.state.total_laps = total_laps
@@ -85,6 +95,8 @@ class Enricher:
         if len(self.state.lap_times) > 10:
             self.state.lap_times = self.state.lap_times[-10:]
             self.state.lap_speeds = self.state.lap_speeds[-10:]
+            self.state.positions = self.state.positions[-10:]
+            self.state.gaps_to_ahead = self.state.gaps_to_ahead[-10:]
         
         # Set baseline (best lap time)
         if self._baseline_lap_time is None or lap_time_seconds < self._baseline_lap_time:
@@ -96,6 +108,8 @@ class Enricher:
         tire_cliff_risk = self._compute_tire_cliff_risk(tire_compound, tire_life_laps)
         pit_window = self._compute_optimal_pit_window(lap_number, total_laps, tire_life_laps, tire_compound)
         performance_delta = self._compute_performance_delta(lap_time_seconds)
+        competitive_pressure = self._compute_competitive_pressure(position, gap_to_ahead)
+        position_trend = self._compute_position_trend()
         
         # Build enriched telemetry
         enriched_telemetry = {
@@ -104,7 +118,9 @@ class Enricher:
             "pace_trend": pace_trend,
             "tire_cliff_risk": round(tire_cliff_risk, 3),
             "optimal_pit_window": pit_window,
-            "performance_delta": round(performance_delta, 2)
+            "performance_delta": round(performance_delta, 2),
+            "competitive_pressure": round(competitive_pressure, 3),
+            "position_trend": position_trend
         }
         
         # Build race context
@@ -118,10 +134,12 @@ class Enricher:
             },
             "driver_state": {
                 "driver_name": "Alonso",
-                "current_position": 5,  # Mock - could be passed in
+                "current_position": position,
                 "current_tire_compound": tire_compound,
                 "tire_age_laps": tire_life_laps,
-                "fuel_remaining_percent": self._estimate_fuel(lap_number, total_laps)
+                "fuel_remaining_percent": self._estimate_fuel(lap_number, total_laps),
+                "gap_to_leader": gap_to_leader,
+                "gap_to_ahead": gap_to_ahead
             }
         }
         
@@ -237,6 +255,56 @@ class Enricher:
             return 0.0
         
         return self._baseline_lap_time - current_lap_time  # Negative if slower
+    
+    def _compute_competitive_pressure(self, position: int, gap_to_ahead: float) -> float:
+        """
+        Calculate competitive pressure based on position and gap to car ahead.
+        Returns 0-1 (0 = no pressure, 1 = extreme pressure).
+        
+        High pressure scenarios:
+        - Close gap to car ahead (potential overtake opportunity)
+        - Poor position (need to push harder)
+        """
+        # Position pressure: worse position = higher pressure
+        position_pressure = min(1.0, (position - 1) / 15.0)  # Normalize to 0-1
+        
+        # Gap pressure: smaller gap = higher pressure (opportunity to attack)
+        if gap_to_ahead <= 0.0:
+            gap_pressure = 0.0  # Leading or no gap data
+        elif gap_to_ahead < 1.0:
+            gap_pressure = 1.0  # Very close - DRS range
+        elif gap_to_ahead < 3.0:
+            gap_pressure = 0.7  # Close - push to close gap
+        elif gap_to_ahead < 10.0:
+            gap_pressure = 0.3  # Moderate gap
+        else:
+            gap_pressure = 0.1  # Large gap - low pressure
+        
+        # Combined pressure (weighted average)
+        return round((position_pressure * 0.4 + gap_pressure * 0.6), 3)
+    
+    def _compute_position_trend(self) -> str:
+        """
+        Analyze recent positions to determine trend.
+        Returns: "gaining", "stable", or "losing"
+        """
+        if len(self.state.positions) < 3:
+            return "stable"
+        
+        recent_positions = self.state.positions[-5:]  # Last 5 laps
+        
+        # Calculate trend (lower position number = better)
+        avg_first_half = sum(recent_positions[:len(recent_positions)//2]) / max(1, len(recent_positions)//2)
+        avg_second_half = sum(recent_positions[len(recent_positions)//2:]) / max(1, len(recent_positions) - len(recent_positions)//2)
+        
+        diff = avg_first_half - avg_second_half  # Positive if gaining positions
+        
+        if diff > 0.5:  # Position number decreased = gained positions
+            return "gaining"
+        elif diff < -0.5:  # Position number increased = lost positions
+            return "losing"
+        else:
+            return "stable"
     
     def _estimate_fuel(self, current_lap: int, total_laps: int) -> float:
         """Estimate remaining fuel percentage based on lap progression."""

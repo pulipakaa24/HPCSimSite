@@ -9,6 +9,9 @@ def normalize_telemetry(payload: Dict[str, Any]) -> Dict[str, Any]:
     Accepted aliases for lap-level data:
     - lap_number: lap, Lap, LapNumber, lap_number
     - total_laps: TotalLaps, total_laps
+    - position: position, Position, Pos
+    - gap_to_leader: gap_to_leader, GapToLeader, gap_leader
+    - gap_to_ahead: gap_to_ahead, GapToAhead, gap_ahead
     - lap_time: lap_time, LapTime, Time
     - average_speed: average_speed, avg_speed, AvgSpeed
     - max_speed: max_speed, MaxSpeed, max
@@ -22,6 +25,9 @@ def normalize_telemetry(payload: Dict[str, Any]) -> Dict[str, Any]:
     aliases = {
         "lap_number": ["lap_number", "lap", "Lap", "LapNumber"],
         "total_laps": ["total_laps", "TotalLaps"],
+        "position": ["position", "Position", "Pos"],
+        "gap_to_leader": ["gap_to_leader", "GapToLeader", "gap_leader"],
+        "gap_to_ahead": ["gap_to_ahead", "GapToAhead", "gap_ahead"],
         "lap_time": ["lap_time", "LapTime", "Time"],
         "average_speed": ["average_speed", "avg_speed", "AvgSpeed"],
         "max_speed": ["max_speed", "MaxSpeed", "max"],
@@ -52,6 +58,24 @@ def normalize_telemetry(payload: Dict[str, Any]) -> Dict[str, Any]:
         total_laps = int(total_laps)
     except (TypeError, ValueError):
         total_laps = 51
+
+    position = pick("position", 10)
+    try:
+        position = int(position)
+    except (TypeError, ValueError):
+        position = 10
+
+    gap_to_leader = pick("gap_to_leader", 0.0)
+    try:
+        gap_to_leader = float(gap_to_leader)
+    except (TypeError, ValueError):
+        gap_to_leader = 0.0
+
+    gap_to_ahead = pick("gap_to_ahead", 0.0)
+    try:
+        gap_to_ahead = float(gap_to_ahead)
+    except (TypeError, ValueError):
+        gap_to_ahead = 0.0
 
     lap_time = pick("lap_time", None)
     if lap_time:
@@ -97,6 +121,9 @@ def normalize_telemetry(payload: Dict[str, Any]) -> Dict[str, Any]:
     out.update({
         "lap_number": lap_number,
         "total_laps": total_laps,
+        "position": position,
+        "gap_to_leader": gap_to_leader,
+        "gap_to_ahead": gap_to_ahead,
         "average_speed": average_speed,
         "max_speed": max_speed,
         "tire_compound": tire_compound,

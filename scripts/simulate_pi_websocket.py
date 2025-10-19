@@ -66,6 +66,9 @@ class PiSimulator:
         return {
             "lap_number": int(row["lap_number"]),
             "total_laps": int(row["total_laps"]),
+            "position": int(row["position"]) if pd.notna(row["position"]) else 10,
+            "gap_to_leader": float(row["gap_to_leader"]) if pd.notna(row["gap_to_leader"]) else 0.0,
+            "gap_to_ahead": float(row["gap_to_ahead"]) if pd.notna(row["gap_to_ahead"]) else 0.0,
             "lap_time": str(row["lap_time"]),
             "average_speed": float(row["average_speed"]),
             "max_speed": float(row["max_speed"]),

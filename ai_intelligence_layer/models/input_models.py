@@ -14,6 +14,8 @@ class EnrichedTelemetryWebhook(BaseModel):
     tire_cliff_risk: float = Field(..., ge=0.0, le=1.0, description="Probability of tire performance cliff (0..1)")
     optimal_pit_window: List[int] = Field(..., description="Recommended pit stop lap window [start, end]")
     performance_delta: float = Field(..., description="Lap time delta vs baseline (negative = slower)")
+    competitive_pressure: float = Field(..., ge=0.0, le=1.0, description="Competitive pressure from position and gaps (0..1)")
+    position_trend: Literal["gaining", "stable", "losing"] = Field(..., description="Position trend over recent laps")
 
 
 class RaceInfo(BaseModel):
@@ -32,6 +34,8 @@ class DriverState(BaseModel):
     current_tire_compound: Literal["soft", "medium", "hard", "intermediate", "wet"] = Field(..., description="Current tire compound")
     tire_age_laps: int = Field(..., ge=0, description="Laps on current tires")
     fuel_remaining_percent: float = Field(..., ge=0.0, le=100.0, description="Remaining fuel percentage")
+    gap_to_leader: Optional[float] = Field(default=0.0, description="Gap to race leader in seconds")
+    gap_to_ahead: Optional[float] = Field(default=0.0, description="Gap to car directly ahead in seconds")
 
 
 class Competitor(BaseModel):
