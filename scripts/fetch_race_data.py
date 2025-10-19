@@ -175,7 +175,7 @@ def prepare_telemetry_stream(telemetry: pd.DataFrame, sample_rate_hz: float = 10
     # Resample to target rate if needed
     telemetry = telemetry.copy()
     telemetry['Time'] = pd.to_timedelta(telemetry['Time'])
-    telemetry = telemetry.sort_values('Time')
+    telemetry = telemetry.sort_values(['LapNumber', 'Time'])
     
     # Convert to milliseconds for easier time tracking
     telemetry['TimeMs'] = (telemetry['Time'].dt.total_seconds() * 1000).astype(int)
