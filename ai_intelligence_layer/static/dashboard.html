@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 AI Intelligence Layer - Vehicle Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .header h1 {
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .header .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .status.connected {
+            background: #10b981;
+            color: white;
+        }
+        
+        .status.disconnected {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .vehicle-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .vehicle-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        .vehicle-header h2 {
+            color: #667eea;
+        }
+        
+        .vehicle-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .info-box {
+            background: #f3f4f6;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .info-box .label {
+            font-size: 12px;
+            color: #6b7280;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        
+        .info-box .value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1f2937;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #fef3c7;
+            border-radius: 8px;
+            border-left: 4px solid #f59e0b;
+        }
+        
+        .control-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .control-label {
+            font-weight: bold;
+            color: #92400e;
+        }
+        
+        .control-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #d97706;
+        }
+        
+        .strategy-box {
+            background: #dbeafe;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .strategy-box h3 {
+            color: #1e40af;
+            margin-bottom: 10px;
+        }
+        
+        .strategy-box .risk {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-left: 10px;
+        }
+        
+        .risk.low {
+            background: #10b981;
+            color: white;
+        }
+        
+        .risk.medium {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .risk.high {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .risk.critical {
+            background: #7f1d1d;
+            color: white;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        
+        th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+        }
+        
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        tr:hover {
+            background: #f9fafb;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #9ca3af;
+            font-style: italic;
+        }
+        
+        .timestamp {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        
+        .badge.improving {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .badge.stable {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .badge.declining {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏎️ F1 AI Intelligence Layer Dashboard</h1>
+        <p>Real-time vehicle telemetry, strategy generation, and control outputs</p>
+        <div style="margin-top: 10px;">
+            <span class="status connected" id="wsStatus">● Connecting...</span>
+        </div>
+    </div>
+    
+    <div id="vehicles">
+        <div class="no-data">
+            No vehicle connections yet. Waiting for Pi clients to connect...
+        </div>
+    </div>
+    
+    <script>
+        // Store vehicle data
+        const vehicles = new Map();
+        
+        // WebSocket connection to backend
+        let ws = null;
+        let reconnectInterval = null;
+        
+        function connect() {
+            ws = new WebSocket('ws://localhost:9000/ws/dashboard');
+            
+            ws.onopen = () => {
+                console.log('Dashboard WebSocket connected');
+                document.getElementById('wsStatus').textContent = '● Connected';
+                document.getElementById('wsStatus').className = 'status connected';
+                clearInterval(reconnectInterval);
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleMessage(data);
+            };
+            
+            ws.onclose = () => {
+                console.log('Dashboard WebSocket disconnected');
+                document.getElementById('wsStatus').textContent = '● Disconnected';
+                document.getElementById('wsStatus').className = 'status disconnected';
+                
+                // Try to reconnect every 3 seconds
+                if (!reconnectInterval) {
+                    reconnectInterval = setInterval(() => {
+                        console.log('Attempting to reconnect...');
+                        connect();
+                    }, 3000);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+        
+        function handleMessage(data) {
+            const { type, vehicle_id, lap_data, control_output, strategy, timestamp } = data;
+            
+            if (type === 'vehicle_connected') {
+                addVehicle(vehicle_id, timestamp);
+            } else if (type === 'vehicle_disconnected') {
+                removeVehicle(vehicle_id);
+            } else if (type === 'lap_data') {
+                addLapData(vehicle_id, lap_data, control_output, strategy, timestamp);
+            }
+        }
+        
+        function addVehicle(vehicleId, timestamp) {
+            if (!vehicles.has(vehicleId)) {
+                vehicles.set(vehicleId, {
+                    id: vehicleId,
+                    connected: true,
+                    connectedAt: timestamp,
+                    laps: [],
+                    currentControls: { brake_bias: 5, differential_slip: 5 },
+                    currentStrategy: null
+                });
+                renderVehicles();
+            }
+        }
+        
+        function removeVehicle(vehicleId) {
+            if (vehicles.has(vehicleId)) {
+                const vehicle = vehicles.get(vehicleId);
+                vehicle.connected = false;
+                renderVehicles();
+            }
+        }
+        
+        function addLapData(vehicleId, lapData, controlOutput, strategy, timestamp) {
+            if (!vehicles.has(vehicleId)) {
+                addVehicle(vehicleId, timestamp);
+            }
+            
+            const vehicle = vehicles.get(vehicleId);
+            vehicle.laps.push({
+                ...lapData,
+                control_output: controlOutput,
+                strategy: strategy,
+                timestamp: timestamp
+            });
+            
+            // Update current controls and strategy
+            if (controlOutput) {
+                vehicle.currentControls = controlOutput;
+            }
+            if (strategy) {
+                vehicle.currentStrategy = strategy;
+            }
+            
+            renderVehicles();
+        }
+        
+        function renderVehicles() {
+            const container = document.getElementById('vehicles');
+            
+            if (vehicles.size === 0) {
+                container.innerHTML = '<div class="no-data">No vehicle connections yet. Waiting for Pi clients to connect...</div>';
+                return;
+            }
+            
+            container.innerHTML = '';
+            
+            vehicles.forEach((vehicle, vehicleId) => {
+                const card = document.createElement('div');
+                card.className = 'vehicle-card';
+                
+                const statusBadge = vehicle.connected 
+                    ? '<span class="status connected">● Connected</span>'
+                    : '<span class="status disconnected">● Disconnected</span>';
+                
+                let strategyHtml = '';
+                if (vehicle.currentStrategy) {
+                    strategyHtml = `
+                        <div class="strategy-box">
+                            <h3>
+                                Current Strategy: ${vehicle.currentStrategy.strategy_name}
+                                <span class="risk ${vehicle.currentStrategy.risk_level}">${vehicle.currentStrategy.risk_level}</span>
+                            </h3>
+                            <p>${vehicle.currentStrategy.brief_description || ''}</p>
+                        </div>
+                    `;
+                }
+                
+                card.innerHTML = `
+                    <div class="vehicle-header">
+                        <div>
+                            <h2>Vehicle #${vehicleId}</h2>
+                            <span class="timestamp">Connected: ${new Date(vehicle.connectedAt).toLocaleString()}</span>
+                        </div>
+                        ${statusBadge}
+                    </div>
+                    
+                    <div class="vehicle-info">
+                        <div class="info-box">
+                            <div class="label">Total Laps</div>
+                            <div class="value">${vehicle.laps.length}</div>
+                        </div>
+                        <div class="info-box">
+                            <div class="label">Last Lap</div>
+                            <div class="value">${vehicle.laps.length > 0 ? vehicle.laps[vehicle.laps.length - 1].lap : 'N/A'}</div>
+                        </div>
+                        <div class="info-box">
+                            <div class="label">Strategies Generated</div>
+                            <div class="value">${vehicle.laps.filter(l => l.strategy).length}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="controls">
+                        <div class="control-item">
+                            <span class="control-label">Brake Bias:</span>
+                            <span class="control-value">${vehicle.currentControls.brake_bias}</span>
+                        </div>
+                        <div class="control-item">
+                            <span class="control-label">Differential Slip:</span>
+                            <span class="control-value">${vehicle.currentControls.differential_slip}</span>
+                        </div>
+                    </div>
+                    
+                    ${strategyHtml}
+                    
+                    <h3 style="margin-bottom: 10px;">Lap History</h3>
+                    ${renderLapTable(vehicle.laps)}
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+        
+        function renderLapTable(laps) {
+            if (laps.length === 0) {
+                return '<div class="no-data">No lap data yet...</div>';
+            }
+            
+            // Reverse to show most recent first
+            const reversedLaps = [...laps].reverse();
+            
+            let tableHtml = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Lap</th>
+                            <th>Tire Deg</th>
+                            <th>Pace Trend</th>
+                            <th>Cliff Risk</th>
+                            <th>Brake Bias</th>
+                            <th>Diff Slip</th>
+                            <th>Strategy</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            reversedLaps.forEach(lap => {
+                const controls = lap.control_output || { brake_bias: '-', differential_slip: '-' };
+                const strategy = lap.strategy ? lap.strategy.strategy_name : '-';
+                const trendBadge = lap.pace_trend ? `<span class="badge ${lap.pace_trend}">${lap.pace_trend}</span>` : '-';
+                
+                tableHtml += `
+                    <tr>
+                        <td><strong>${lap.lap}</strong></td>
+                        <td>${(lap.tire_degradation_rate * 100).toFixed(0)}%</td>
+                        <td>${trendBadge}</td>
+                        <td>${(lap.tire_cliff_risk * 100).toFixed(0)}%</td>
+                        <td><strong>${controls.brake_bias}</strong></td>
+                        <td><strong>${controls.differential_slip}</strong></td>
+                        <td>${strategy}</td>
+                        <td class="timestamp">${new Date(lap.timestamp).toLocaleTimeString()}</td>
+                    </tr>
+                `;
+            });
+            
+            tableHtml += '</tbody></table>';
+            return tableHtml;
+        }
+        
+        // Initialize connection
+        connect();
+    </script>
+</body>
+</html>

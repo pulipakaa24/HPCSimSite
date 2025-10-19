@@ -6,11 +6,15 @@ Supports WebSocket connections from Pi for bidirectional control.
 """
 from fastapi import FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import logging
 import asyncio
 import random
 from typing import Dict, Any, List
+from datetime import datetime
+import json
 
 from config import get_settings
 from models.input_models import (
@@ -52,11 +56,14 @@ class ConnectionManager:
     
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self.vehicle_counter = 0
     
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
+        self.vehicle_counter += 1
         logger.info(f"Pi client connected. Total connections: {len(self.active_connections)}")
+        return self.vehicle_counter
     
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
@@ -74,7 +81,38 @@ class ConnectionManager:
             except Exception as e:
                 logger.error(f"Error broadcasting to client: {e}")
 
+class DashboardManager:
+    """Manages WebSocket connections for dashboard clients."""
+    
+    def __init__(self):
+        self.active_dashboards: List[WebSocket] = []
+    
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_dashboards.append(websocket)
+        logger.info(f"Dashboard connected. Total dashboards: {len(self.active_dashboards)}")
+    
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_dashboards:
+            self.active_dashboards.remove(websocket)
+            logger.info(f"Dashboard disconnected. Total dashboards: {len(self.active_dashboards)}")
+    
+    async def broadcast(self, message: Dict[str, Any]):
+        """Broadcast message to all connected dashboards."""
+        disconnected = []
+        for dashboard in self.active_dashboards:
+            try:
+                await dashboard.send_json(message)
+            except Exception as e:
+                logger.error(f"Error broadcasting to dashboard: {e}")
+                disconnected.append(dashboard)
+        
+        # Clean up disconnected dashboards
+        for dashboard in disconnected:
+            self.disconnect(dashboard)
+
 websocket_manager = ConnectionManager()
+dashboard_manager = DashboardManager()
 
 
 @asynccontextmanager
@@ -117,6 +155,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/")
+async def dashboard():
+    """Serve the dashboard HTML page."""
+    return FileResponse("static/dashboard.html")
 
 
 @app.get("/api/health", response_model=HealthResponse)
@@ -297,6 +344,30 @@ async def analyze_strategies(request: AnalyzeRequest):
 """
 
 
+@app.websocket("/ws/dashboard")
+async def websocket_dashboard_endpoint(websocket: WebSocket):
+    """
+    WebSocket endpoint for dashboard clients.
+    Broadcasts vehicle connection status and lap data updates.
+    """
+    await dashboard_manager.connect(websocket)
+    
+    try:
+        # Keep connection alive
+        while True:
+            # Receive any messages (mostly just keepalive pings)
+            data = await websocket.receive_text()
+            # Echo back if needed
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        logger.info("[Dashboard] Client disconnected")
+    except Exception as e:
+        logger.error(f"[Dashboard] Error: {e}")
+    finally:
+        dashboard_manager.disconnect(websocket)
+
+
 @app.websocket("/ws/pi")
 async def websocket_pi_endpoint(websocket: WebSocket):
     """
@@ -309,7 +380,7 @@ async def websocket_pi_endpoint(websocket: WebSocket):
     """
     global current_race_context, last_control_command
     
-    await websocket_manager.connect(websocket)
+    vehicle_id = await websocket_manager.connect(websocket)
     
     # Clear telemetry buffer for fresh connection
     # This ensures lap counting starts from scratch for each Pi session
@@ -319,6 +390,13 @@ async def websocket_pi_endpoint(websocket: WebSocket):
     last_control_command = {"brake_bias": 5, "differential_slip": 5}
     
     logger.info("[WebSocket] Telemetry buffer cleared for new connection")
+    
+    # Notify dashboards of new vehicle connection
+    await dashboard_manager.broadcast({
+        "type": "vehicle_connected",
+        "vehicle_id": vehicle_id,
+        "timestamp": datetime.now().isoformat()
+    })
     
     try:
         # Send initial welcome message
@@ -407,6 +485,23 @@ async def websocket_pi_endpoint(websocket: WebSocket):
                                     "reasoning": control_command.get("reasoning", "")
                                 })
                                 
+                                # Broadcast to dashboards with strategy
+                                await dashboard_manager.broadcast({
+                                    "type": "lap_data",
+                                    "vehicle_id": vehicle_id,
+                                    "lap_data": enriched,
+                                    "control_output": {
+                                        "brake_bias": control_command["brake_bias"],
+                                        "differential_slip": control_command["differential_slip"]
+                                    },
+                                    "strategy": {
+                                        "strategy_name": top_strategy.strategy_name,
+                                        "risk_level": top_strategy.risk_level,
+                                        "brief_description": top_strategy.brief_description
+                                    } if top_strategy else None,
+                                    "timestamp": datetime.now().isoformat()
+                                })
+                                
                                 logger.info(f"{'='*60}\n")
                             
                             except Exception as e:
@@ -425,6 +520,19 @@ async def websocket_pi_endpoint(websocket: WebSocket):
                                 "brake_bias": 5,  # Neutral
                                 "differential_slip": 5,  # Neutral
                                 "message": f"Collecting data ({len(buffer_data)}/3 laps)"
+                            })
+                            
+                            # Broadcast to dashboards (no strategy yet)
+                            await dashboard_manager.broadcast({
+                                "type": "lap_data",
+                                "vehicle_id": vehicle_id,
+                                "lap_data": enriched,
+                                "control_output": {
+                                    "brake_bias": 5,
+                                    "differential_slip": 5
+                                },
+                                "strategy": None,
+                                "timestamp": datetime.now().isoformat()
                             })
                     
                     except Exception as e:
@@ -454,6 +562,13 @@ async def websocket_pi_endpoint(websocket: WebSocket):
         # Clear buffer when connection closes to ensure fresh start for next connection
         telemetry_buffer.clear()
         logger.info("[WebSocket] Telemetry buffer cleared on disconnect")
+        
+        # Notify dashboards of vehicle disconnect
+        await dashboard_manager.broadcast({
+            "type": "vehicle_disconnected",
+            "vehicle_id": vehicle_id,
+            "timestamp": datetime.now().isoformat()
+        })
 
 
 def generate_control_command(
