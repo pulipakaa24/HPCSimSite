@@ -15,6 +15,10 @@ import random
 from typing import Dict, Any, List
 from datetime import datetime
 import json
+from dotenv import load_dotenv
+
+# Load environment variables from .env file in project root
+load_dotenv()
 
 from config import get_settings
 from models.input_models import (
@@ -445,14 +449,12 @@ async def websocket_pi_endpoint(websocket: WebSocket):
                             logger.info(f"LAP {lap_number} - GENERATING STRATEGY")
                             logger.info(f"{'='*60}")
                             
-                            # Send immediate acknowledgment while processing
-                            # Use last known control values instead of resetting to neutral
+                            # Send SILENT acknowledgment to prevent timeout (no control update)
+                            # This tells the Pi "we're working on it" without triggering voice/controls
                             await websocket.send_json({
-                                "type": "control_command",
+                                "type": "acknowledgment",
                                 "lap": lap_number,
-                                "brake_bias": last_control_command["brake_bias"],
-                                "differential_slip": last_control_command["differential_slip"],
-                                "message": "Processing strategies (maintaining previous settings)..."
+                                "message": "Processing strategies, please wait..."
                             })
                             
                             # Generate strategies (this is the slow part)
@@ -500,6 +502,7 @@ async def websocket_pi_endpoint(websocket: WebSocket):
                                     "brake_bias": control_command["brake_bias"],
                                     "differential_slip": control_command["differential_slip"],
                                     "strategy_name": top_strategy.strategy_name if top_strategy else "N/A",
+                                    "risk_level": top_strategy.risk_level if top_strategy else "medium",
                                     "total_strategies": len(response.strategies),
                                     "reasoning": control_command.get("reasoning", "")
                                 })

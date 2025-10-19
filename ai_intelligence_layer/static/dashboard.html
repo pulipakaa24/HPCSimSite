@@ -683,7 +683,13 @@
         }
         
         function connect() {
-            ws = new WebSocket('ws://localhost:9000/ws/dashboard');
+            // Dynamically determine WebSocket URL based on current location
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            const wsUrl = `${protocol}//${host}/ws/dashboard`;
+            
+            console.log(`Connecting to WebSocket: ${wsUrl}`);
+            ws = new WebSocket(wsUrl);
             
             ws.onopen = () => {
                 console.log('Dashboard WebSocket connected');

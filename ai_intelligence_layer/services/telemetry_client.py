@@ -16,7 +16,8 @@ class TelemetryClient:
     def __init__(self):
         """Initialize telemetry client."""
         settings = get_settings()
-        self.base_url = settings.enrichment_service_url
+        # Use internal_enrichment_url which adapts for production
+        self.base_url = settings.internal_enrichment_url
         self.fetch_limit = settings.enrichment_fetch_limit
         logger.info(f"Telemetry client initialized for {self.base_url}")
     

@@ -13,13 +13,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class RaceEngineerVoice:
-    def __init__(self, voice_id: str = "mbBupyLcEivjpxh8Brkf"):  # Default: Rachel
-        """
-        Initialize ElevenLabs voice service.
+    def __init__(self, voice_id: str = "mbBupyLcEivjpxh8Brkf"):
         
-        Args:
-            voice_id: ElevenLabs voice ID (Rachel is default, professional female voice)
-        """
         self.client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
         self.voice_id = voice_id
         
