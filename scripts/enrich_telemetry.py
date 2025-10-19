@@ -24,6 +24,8 @@ def main():
     parser = argparse.ArgumentParser(description="Enrich telemetry JSON lines with HPC-style metrics")
     parser.add_argument("--input", "-i", help="Input file path (JSON lines). Reads stdin if omitted.")
     parser.add_argument("--output", "-o", help="Output file path (JSON lines). Writes stdout if omitted.")
+    parser.add_argument("--full-context", action="store_true", 
+                        help="Output full enriched telemetry with race context (for AI layer)")
     args = parser.parse_args()
 
     enricher = Enricher()
@@ -33,8 +35,14 @@ def main():
 
     try:
         for rec in iter_json_lines(fin):
-            enriched = enricher.enrich(rec)
-            print(json.dumps(enriched), file=fout)
+            if args.full_context:
+                # Output enriched telemetry + race context
+                result = enricher.enrich_with_context(rec)
+            else:
+                # Legacy mode: output only enriched metrics
+                result = enricher.enrich(rec)
+            
+            print(json.dumps(result), file=fout)
             fout.flush()
     finally:
         if fin is not sys.stdin:

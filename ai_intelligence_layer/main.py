@@ -14,6 +14,7 @@ from models.input_models import (
     BrainstormRequest,
     # AnalyzeRequest,  # Disabled - not using analysis
     EnrichedTelemetryWebhook,
+    EnrichedTelemetryWithContext,
     RaceContext  # Import for global storage
 )
 from models.output_models import (
@@ -98,19 +99,63 @@ async def health_check():
 
 
 @app.post("/api/ingest/enriched")
-async def ingest_enriched_telemetry(data: EnrichedTelemetryWebhook):
+async def ingest_enriched_telemetry(data: EnrichedTelemetryWithContext):
     """
     Webhook receiver for enriched telemetry data from HPC enrichment module.
     This is called when enrichment service has NEXT_STAGE_CALLBACK_URL configured.
+    
+    Receives enriched telemetry + race context and automatically triggers strategy brainstorming.
     """
+    global current_race_context
+    
     try:
-        logger.info(f"Received enriched telemetry webhook: lap {data.lap}")
-        telemetry_buffer.add(data)
-        return {
-            "status": "received",
-            "lap": data.lap,
-            "buffer_size": telemetry_buffer.size()
-        }
+        logger.info(f"Received enriched telemetry webhook: lap {data.enriched_telemetry.lap}")
+        
+        # Store telemetry in buffer
+        telemetry_buffer.add(data.enriched_telemetry)
+        
+        # Update global race context
+        current_race_context = data.race_context
+        
+        # Automatically trigger strategy brainstorming
+        buffer_data = telemetry_buffer.get_latest(limit=10)
+        
+        if buffer_data and len(buffer_data) >= 3:  # Wait for at least 3 laps of data
+            logger.info(f"Auto-triggering strategy brainstorm with {len(buffer_data)} telemetry records")
+            
+            try:
+                # Generate strategies
+                response = await strategy_generator.generate(
+                    enriched_telemetry=buffer_data,
+                    race_context=data.race_context
+                )
+                
+                logger.info(f"Auto-generated {len(response.strategies)} strategies for lap {data.enriched_telemetry.lap}")
+                
+                return {
+                    "status": "received_and_processed",
+                    "lap": data.enriched_telemetry.lap,
+                    "buffer_size": telemetry_buffer.size(),
+                    "strategies_generated": len(response.strategies),
+                    "strategies": [s.model_dump() for s in response.strategies]
+                }
+            except Exception as e:
+                logger.error(f"Error in auto-brainstorm: {e}", exc_info=True)
+                # Still return success for ingestion even if brainstorm fails
+                return {
+                    "status": "received_but_brainstorm_failed",
+                    "lap": data.enriched_telemetry.lap,
+                    "buffer_size": telemetry_buffer.size(),
+                    "error": str(e)
+                }
+        else:
+            logger.info(f"Buffer has only {len(buffer_data) if buffer_data else 0} records, waiting for more data before brainstorming")
+            return {
+                "status": "received_waiting_for_more_data",
+                "lap": data.enriched_telemetry.lap,
+                "buffer_size": telemetry_buffer.size()
+            }
+            
     except Exception as e:
         logger.error(f"Error ingesting telemetry: {e}")
         raise HTTPException(

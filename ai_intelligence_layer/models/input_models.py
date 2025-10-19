@@ -74,3 +74,9 @@ class AnalyzeRequest(BaseModel):
     enriched_telemetry: Optional[List[EnrichedTelemetryWebhook]] = Field(None, description="Enriched telemetry data")
     race_context: RaceContext = Field(..., description="Current race context")
     strategies: List[Strategy] = Field(..., description="Strategies to analyze (typically 20)")
+
+
+class EnrichedTelemetryWithContext(BaseModel):
+    """Webhook payload containing enriched telemetry and race context."""
+    enriched_telemetry: EnrichedTelemetryWebhook = Field(..., description="Single lap enriched telemetry")
+    race_context: RaceContext = Field(..., description="Current race context")

@@ -36,30 +36,34 @@ class EnrichedRecord(BaseModel):
 
 @app.post("/ingest/telemetry")
 async def ingest_telemetry(payload: Dict[str, Any] = Body(...)):
-    """Receive raw telemetry (from Pi), normalize, enrich, return enriched.
+    """Receive raw telemetry (from Pi), normalize, enrich, return enriched with race context.
 
     Optionally forwards to NEXT_STAGE_CALLBACK_URL if set.
     """
     try:
         normalized = normalize_telemetry(payload)
-        enriched = _enricher.enrich(normalized)
+        result = _enricher.enrich_with_context(normalized)
+        enriched = result["enriched_telemetry"]
+        race_context = result["race_context"]
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to enrich: {e}")
 
+    # Store enriched telemetry in recent buffer
     _recent.append(enriched)
     if len(_recent) > _MAX_RECENT:
         del _recent[: len(_recent) - _MAX_RECENT]
 
     # Async forward to next stage if configured
+    # Send both enriched telemetry and race context
     if _CALLBACK_URL:
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                await client.post(_CALLBACK_URL, json=enriched)
+                await client.post(_CALLBACK_URL, json=result)
         except Exception:
             # Don't fail ingestion if forwarding fails; log could be added here
             pass
 
-    return JSONResponse(enriched)
+    return JSONResponse(result)
 
 
 @app.post("/enriched")

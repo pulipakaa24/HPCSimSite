@@ -45,7 +45,13 @@ def row_to_json(row: pd.Series) -> Dict[str, Any]:
         'tire_compound': str(row['tire_compound']) if pd.notna(row['tire_compound']) else 'UNKNOWN',
         'tire_life_laps': float(row['tire_life_laps']) if pd.notna(row['tire_life_laps']) else 0.0,
         'track_temperature': float(row['track_temperature']) if pd.notna(row['track_temperature']) else 0.0,
-        'rainfall': bool(row['rainfall'])
+        'rainfall': bool(row['rainfall']),
+        
+        # Additional race context fields
+        'track_name': 'Monza',  # From ALONSO_2023_MONZA_RACE
+        'driver_name': 'Alonso',
+        'current_position': 5,  # Mock position, could be varied
+        'fuel_level': max(0.1, 1.0 - (float(row['lap_number']) / float(row['total_laps']) * 0.8)) if pd.notna(row['lap_number']) and pd.notna(row['total_laps']) else 0.5,
     }
     return data
 
