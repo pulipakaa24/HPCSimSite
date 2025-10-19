@@ -1,0 +1,46 @@
+{
+  "race_info": {
+    "track_name": "Monaco",
+    "total_laps": 58,
+    "current_lap": 27,
+    "weather_condition": "Dry",
+    "track_temp_celsius": 42
+  },
+  "driver_state": {
+    "driver_name": "Hamilton",
+    "current_position": 4,
+    "current_tire_compound": "medium",
+    "tire_age_laps": 14,
+    "fuel_remaining_percent": 47
+  },
+  "competitors": [
+    {
+      "position": 1,
+      "driver": "Verstappen",
+      "tire_compound": "hard",
+      "tire_age_laps": 10,
+      "gap_seconds": -8.2
+    },
+    {
+      "position": 2,
+      "driver": "Perez",
+      "tire_compound": "medium",
+      "tire_age_laps": 12,
+      "gap_seconds": -3.5
+    },
+    {
+      "position": 3,
+      "driver": "Leclerc",
+      "tire_compound": "medium",
+      "tire_age_laps": 15,
+      "gap_seconds": 2.1
+    },
+    {
+      "position": 5,
+      "driver": "Sainz",
+      "tire_compound": "hard",
+      "tire_age_laps": 9,
+      "gap_seconds": -4.8
+    }
+  ]
+}
