@@ -1,94 +1,54 @@
-# HPCSimSite
-HPC simulation site
+# Guido.tech: 
+## An F1 AI Race Engineer System
 
-# F1 Virtual Race Engineer — Enrichment Module
+Real-time F1 race strategy system combining telemetry enrichment with AI-powered strategy generation. The system receives lap-by-lap telemetry from Raspberry Pi hardware, enriches it with performance analytics, and generates dynamic race strategies using Google Gemini AI.
 
-This repo contains a minimal, dependency-free Python module to enrich Raspberry Pi telemetry (derived from FastF1) with HPC-style analytics features. It simulates the first LLM stage (data enrichment) using deterministic heuristics so you can run the pipeline locally and in CI without external services.
+## Architecture
 
-## What it does
-- Accepts lap-level telemetry JSON records.
-- Produces an enriched record with:
-	- aero_efficiency (0..1)
-	- tire_degradation_index (0..1, higher=worse)
-	- ers_charge (0..1)
-	- fuel_optimization_score (0..1)
-	- driver_consistency (0..1)
-	- weather_impact (low|medium|high)
+The system consists of two main services:
 
-## Expected input schema
-Fields are extensible; these cover the initial POC.
+1. **Enrichment Service** (`hpcsim/`) - Port 8000
+   - Receives raw telemetry from Raspberry Pi
+   - Enriches data with tire degradation, pace trends, pit window predictions
+   - Forwards to AI Intelligence Layer via webhook
 
-Required (or sensible defaults applied):
-- lap: int
-- speed: float (km/h)
-- throttle: float (0..1)
-- brake: float (0..1)
-- tire_compound: string (soft|medium|hard|inter|wet)
-- fuel_level: float (0..1)
+2. **AI Intelligence Layer** (`ai_intelligence_layer/`) - Port 9000
+   - WebSocket server for real-time Pi communication
+   - Generates race strategies using Google Gemini AI
+   - Sends control commands (brake bias, differential slip) back to Pi
+   - Web dashboard for monitoring
 
-Optional:
-- ers: float (0..1)
-- track_temp: float (Celsius)
-- rain_probability: float (0..1)
+## Quick Start
 
-Example telemetry line (JSONL):
-{"lap":27,"speed":282,"throttle":0.91,"brake":0.05,"tire_compound":"medium","fuel_level":0.47}
+### Prerequisites
 
-## Output schema (enriched)
-Example:
-{"lap":27,"aero_efficiency":0.83,"tire_degradation_index":0.65,"ers_charge":0.72,"fuel_optimization_score":0.91,"driver_consistency":0.89,"weather_impact":"medium"}
+- Python 3.9+
+- Google Gemini API key
 
-## Quick start
-
-### Run the CLI
-The CLI reads JSON Lines (one JSON object per line) from stdin or a file and writes enriched JSON lines to stdout or a file.
+### 1. Install Dependencies
 
 ```bash
-python3 scripts/enrich_telemetry.py -i telemetry.jsonl -o enriched.jsonl
+# Install enrichment service dependencies
+pip install -r requirements.txt
+
+# Install AI layer dependencies
+pip install -r ai_intelligence_layer/requirements.txt
 ```
 
-Or stream:
+### 2. Configure Environment
+
+Create `ai_intelligence_layer/.env`:
 
 ```bash
-cat telemetry.jsonl | python3 scripts/enrich_telemetry.py > enriched.jsonl
+GEMINI_API_KEY=your_gemini_api_key_here
+ENVIRONMENT=development
+FAST_MODE=true
+STRATEGY_COUNT=3
 ```
 
-### Library usage
+### 3. Run the System
 
-```python
-from hpcsim.enrichment import Enricher
-
-enricher = Enricher()
-out = enricher.enrich({
-		"lap": 1,
-		"speed": 250,
-		"throttle": 0.8,
-		"brake": 0.1,
-		"tire_compound": "medium",
-		"fuel_level": 0.6,
-})
-print(out)
-```
-
-## Notes
-- The enrichment maintains state across laps (e.g., cumulative tire wear, consistency from last up to 5 laps). If you restart the process mid-race, these will reset; you can re-feed prior laps to restore state.
-- If your FastF1-derived telemetry has a different shape, share a sample and we can add adapters.
-
-## Tests
-
-Run minimal tests:
-
-```bash
-python3 -m unittest tests/test_enrichment.py -v
-```
-
-## API reference (Enrichment Service)
-
-Base URL (local): http://localhost:8000
-
-Interactive docs: http://localhost:8000/docs (Swagger) and http://localhost:8000/redoc
-
-### Run the API server
+**Option A: Run both services together (recommended)**
 
 ```bash
 python3 scripts/serve.py
@@ -122,16 +82,7 @@ Accepts raw Raspberry Pi or FastF1-style telemetry, normalizes field names, enri
 Example request:
 
 ```bash
-curl -s -X POST http://localhost:8000/ingest/telemetry \
-	-H "Content-Type: application/json" \
-	-d '{
-				"LapNumber": 27,
-				"Speed": 282,
-				"Throttle": 0.91,
-				"Brakes": 0.05,
-				"TyreCompound": "medium",
-				"FuelRel": 0.47
-			}'
+
 ```
 
 Response 200 (application/json):
