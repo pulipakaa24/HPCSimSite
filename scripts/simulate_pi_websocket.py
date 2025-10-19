@@ -464,7 +464,13 @@ class PiSimulator:
         logger.info(f"Connecting to WebSocket: {self.ws_url}")
         
         try:
-            async with websockets.connect(self.ws_url) as websocket:
+            # Configure WebSocket with longer ping timeout and interval
+            async with websockets.connect(
+                self.ws_url,
+                ping_interval=20,  # Send ping every 20 seconds
+                ping_timeout=60,   # Wait up to 60 seconds for pong response
+                close_timeout=10   # Timeout for close handshake
+            ) as websocket:
                 logger.info("WebSocket connected!")
                 
                 # Wait for welcome message
@@ -671,6 +677,15 @@ class PiSimulator:
                 # Send disconnect message
                 await websocket.send(json.dumps({"type": "disconnect"}))
         
+        except websockets.exceptions.ConnectionClosedError as e:
+            if e.code == 1011:
+                logger.error(f"WebSocket keepalive timeout (1011): Connection lost due to ping/pong failure")
+                logger.error("Possible causes:")
+                logger.error("  - Server took too long to respond (strategy generation > 60s)")
+                logger.error("  - Network latency or congestion")
+                logger.error("  - Server overloaded or unresponsive")
+            else:
+                logger.error(f"WebSocket connection closed: {e} (code: {e.code})")
         except websockets.exceptions.WebSocketException as e:
             logger.error(f"WebSocket error: {e}")
             logger.error("Is the AI Intelligence Layer running on port 9000?")
