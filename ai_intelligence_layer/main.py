@@ -49,6 +49,7 @@ strategy_generator: StrategyGenerator = None
 telemetry_client: TelemetryClient = None
 current_race_context: RaceContext = None  # Store race context globally
 last_control_command: Dict[str, int] = {"brake_bias": 5, "differential_slip": 5}  # Store last command
+strategy_history: List[Dict[str, Any]] = []  # Track past strategies for continuity
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -378,7 +379,7 @@ async def websocket_pi_endpoint(websocket: WebSocket):
     2. AI layer processes telemetry and generates strategies
     3. AI layer pushes control commands back to Pi (brake_bias, differential_slip)
     """
-    global current_race_context, last_control_command
+    global current_race_context, last_control_command, strategy_history
     
     vehicle_id = await websocket_manager.connect(websocket)
     
@@ -389,7 +390,11 @@ async def websocket_pi_endpoint(websocket: WebSocket):
     # Reset last control command to neutral for new session
     last_control_command = {"brake_bias": 5, "differential_slip": 5}
     
+    # Clear strategy history for new race
+    strategy_history = []
+    
     logger.info("[WebSocket] Telemetry buffer cleared for new connection")
+    logger.info("[WebSocket] Strategy history cleared for new race")
     
     # Notify dashboards of new vehicle connection
     await dashboard_manager.broadcast({
@@ -454,11 +459,25 @@ async def websocket_pi_endpoint(websocket: WebSocket):
                             try:
                                 response = await strategy_generator.generate(
                                     enriched_telemetry=buffer_data,
-                                    race_context=current_race_context
+                                    race_context=current_race_context,
+                                    strategy_history=strategy_history
                                 )
                                 
                                 # Extract top strategy (first one)
                                 top_strategy = response.strategies[0] if response.strategies else None
+                                
+                                # Add to strategy history
+                                if top_strategy:
+                                    strategy_history.append({
+                                        "lap": lap_number,
+                                        "strategy_name": top_strategy.strategy_name,
+                                        "risk_level": top_strategy.risk_level,
+                                        "brief_description": top_strategy.brief_description,
+                                        "reasoning": top_strategy.reasoning
+                                    })
+                                    # Keep only last 10 strategies
+                                    if len(strategy_history) > 10:
+                                        strategy_history.pop(0)
                                 
                                 # Generate control commands based on strategy
                                 control_command = generate_control_command(
@@ -490,6 +509,11 @@ async def websocket_pi_endpoint(websocket: WebSocket):
                                     "type": "lap_data",
                                     "vehicle_id": vehicle_id,
                                     "lap_data": enriched,
+                                    "race_context": {
+                                        "position": current_race_context.driver_state.current_position,
+                                        "gap_to_leader": current_race_context.driver_state.gap_to_leader,
+                                        "gap_to_ahead": current_race_context.driver_state.gap_to_ahead
+                                    },
                                     "control_output": {
                                         "brake_bias": control_command["brake_bias"],
                                         "differential_slip": control_command["differential_slip"]
@@ -497,7 +521,8 @@ async def websocket_pi_endpoint(websocket: WebSocket):
                                     "strategy": {
                                         "strategy_name": top_strategy.strategy_name,
                                         "risk_level": top_strategy.risk_level,
-                                        "brief_description": top_strategy.brief_description
+                                        "brief_description": top_strategy.brief_description,
+                                        "reasoning": top_strategy.reasoning
                                     } if top_strategy else None,
                                     "timestamp": datetime.now().isoformat()
                                 })
@@ -527,6 +552,11 @@ async def websocket_pi_endpoint(websocket: WebSocket):
                                 "type": "lap_data",
                                 "vehicle_id": vehicle_id,
                                 "lap_data": enriched,
+                                "race_context": {
+                                    "position": current_race_context.driver_state.current_position,
+                                    "gap_to_leader": current_race_context.driver_state.gap_to_leader,
+                                    "gap_to_ahead": current_race_context.driver_state.gap_to_ahead
+                                },
                                 "control_output": {
                                     "brake_bias": 5,
                                     "differential_slip": 5

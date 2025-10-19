@@ -62,6 +62,7 @@ class Strategy(BaseModel):
     pit_laps: List[int] = Field(..., description="Lap numbers for pit stops")
     tire_sequence: List[Literal["soft", "medium", "hard", "intermediate", "wet"]] = Field(..., description="Tire compounds in order")
     brief_description: str = Field(..., description="One sentence rationale")
+    reasoning: Optional[str] = Field(None, description="Detailed explanation including strategy change/continuity rationale")
     risk_level: Literal["low", "medium", "high", "critical"] = Field(..., description="Risk assessment")
     key_assumption: str = Field(..., description="Main assumption this strategy relies on")
 

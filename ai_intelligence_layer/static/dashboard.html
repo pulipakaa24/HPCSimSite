@@ -715,14 +715,14 @@
         }
         
         function handleMessage(data) {
-            const { type, vehicle_id, lap_data, control_output, strategy, timestamp } = data;
+            const { type, vehicle_id, lap_data, race_context, control_output, strategy, timestamp } = data;
             
             if (type === 'vehicle_connected') {
                 addVehicle(vehicle_id, timestamp);
             } else if (type === 'vehicle_disconnected') {
                 removeVehicle(vehicle_id);
             } else if (type === 'lap_data') {
-                addLapData(vehicle_id, lap_data, control_output, strategy, timestamp);
+                addLapData(vehicle_id, lap_data, race_context, control_output, strategy, timestamp);
             }
         }
         
@@ -750,7 +750,7 @@
             }
         }
         
-        function addLapData(vehicleId, lapData, controlOutput, strategy, timestamp) {
+        function addLapData(vehicleId, lapData, raceContext, controlOutput, strategy, timestamp) {
             if (!vehicles.has(vehicleId)) {
                 addVehicle(vehicleId, timestamp);
             }
@@ -758,6 +758,7 @@
             const vehicle = vehicles.get(vehicleId);
             vehicle.laps.push({
                 ...lapData,
+                race_context: raceContext,  // Add race context with position and gaps
                 control_output: controlOutput,
                 strategy: strategy,
                 timestamp: timestamp
@@ -906,6 +907,37 @@
             modalTitle.textContent = `LAP ${lap.lap} DETAILS`;
             
             let bodyHtml = '';
+            
+            // Race Position section (lap_time, position, gaps)
+            if (lap.race_context || lap.lap_time) {
+                bodyHtml += `
+                    <div class="modal-section">
+                        <h3>Race Position</h3>
+                        <div class="modal-data">
+                            ${lap.lap_time ? `
+                            <div class="modal-data-row">
+                                <span class="modal-data-label">Lap Time</span>
+                                <span class="modal-data-value">${lap.lap_time}</span>
+                            </div>
+                            ` : ''}
+                            ${lap.race_context ? `
+                            <div class="modal-data-row">
+                                <span class="modal-data-label">Position</span>
+                                <span class="modal-data-value">P${lap.race_context.position}</span>
+                            </div>
+                            <div class="modal-data-row">
+                                <span class="modal-data-label">Gap from Leader</span>
+                                <span class="modal-data-value">${lap.race_context.gap_to_leader > 0 ? '+' + lap.race_context.gap_to_leader.toFixed(3) + 's' : (lap.race_context.position === 1 ? 'Leading' : 'N/A')}</span>
+                            </div>
+                            <div class="modal-data-row">
+                                <span class="modal-data-label">Gap from Car Ahead</span>
+                                <span class="modal-data-value">${lap.race_context.gap_to_ahead > 0 ? '+' + lap.race_context.gap_to_ahead.toFixed(3) + 's' : (lap.race_context.position === 1 ? 'Leading' : 'N/A')}</span>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
             
             // Telemetry data section
             bodyHtml += `

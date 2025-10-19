@@ -25,7 +25,8 @@ class StrategyGenerator:
     async def generate(
         self,
         enriched_telemetry: List[EnrichedTelemetryWebhook],
-        race_context: RaceContext
+        race_context: RaceContext,
+        strategy_history: List[dict] = None
     ) -> BrainstormResponse:
         """
         Generate 20 diverse race strategies.
@@ -33,6 +34,7 @@ class StrategyGenerator:
         Args:
             enriched_telemetry: Recent enriched telemetry data
             race_context: Current race context
+            strategy_history: List of previous strategies for continuity
             
         Returns:
             BrainstormResponse with 20 strategies
@@ -41,13 +43,15 @@ class StrategyGenerator:
             Exception: If generation fails
         """
         logger.info(f"Generating strategies using {len(enriched_telemetry)} laps of telemetry")
+        if strategy_history:
+            logger.info(f"Including {len(strategy_history)} previous strategies in context")
         
         # Build prompt (use fast mode if enabled)
         if self.settings.fast_mode:
             from prompts.brainstorm_prompt import build_brainstorm_prompt_fast
-            prompt = build_brainstorm_prompt_fast(enriched_telemetry, race_context)
+            prompt = build_brainstorm_prompt_fast(enriched_telemetry, race_context, strategy_history or [])
         else:
-            prompt = build_brainstorm_prompt(enriched_telemetry, race_context)
+            prompt = build_brainstorm_prompt(enriched_telemetry, race_context, strategy_history or [])
         
         # Generate with Gemini (high temperature for creativity)
         response_data = await self.gemini_client.generate_json(
