@@ -1,16 +1,16 @@
 # Guido.tech: 
 ## An F1 AI Race Engineer System
 
-Real-time F1 race strategy system combining telemetry enrichment with AI-powered strategy generation. The system receives lap-by-lap telemetry from Raspberry Pi hardware, enriches it with performance analytics, and generates dynamic race strategies using Google Gemini AI.
+Real-time F1 race strategy system combining telemetry enrichment with AI-powered strategy generation. The system receives lap-by-lap telemetry from vehicle controller simulation, enriches it with performance analytics, and generates dynamic race strategies using Google Gemini AI before sending control updates back to the vehicle controller simulation.
 
 ## Architecture
 
 The system consists of two main services:
 
 1. **Enrichment Service** (`hpcsim/`) - Port 8000
-   - Receives raw telemetry from Raspberry Pi
+   - Receives raw telemetry from Raspberry Pi simulator
    - Enriches data with tire degradation, pace trends, pit window predictions
-   - Forwards to AI Intelligence Layer via webhook
+   - Forwards to AI Layer via webhook
 
 2. **AI Intelligence Layer** (`ai_intelligence_layer/`) - Port 9000
    - WebSocket server for real-time Pi communication
